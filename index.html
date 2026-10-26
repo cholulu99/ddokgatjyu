@@ -1,0 +1,962 @@
+<p>
+  test {x}
+</p><!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>똑같쥬? 성대모사 점수판</title>
+<meta name="description" content="3초 소리를 듣고 따라하면 일치율을 점수로 매겨주는 성대모사 게임. 혼자 연습하거나 친구들과 내기하세요.">
+<meta property="og:title" content="똑같쥬? 성대모사 점수판">
+<meta property="og:description" content="야옹, 삐뽀삐뽀, 꼬끼오… 듣고 따라하면 일치율을 매겨드려요. 친구랑 내기 모드도 있어요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 노래방 점수 화면 같은 '스크린' 패널 하나가 주인공, 아래로 소리 카드 격자 */
+:root{
+--bg:#0d0f33; --panel:#171a4d; --panel2:#20246a; --line:#323890;
+--fg:#eef0ff; --muted:#9ba1da; --yellow:#ffd23f; --cyan:#41e2d2; --pink:#ff5fa2; --red:#ff6b5b;
+--display:"Black Han Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+--body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--body);min-height:100vh;
+background-image:radial-gradient(900px 500px at 85% -10%,rgba(255,95,162,.16),transparent 60%),radial-gradient(800px 500px at -10% 10%,rgba(65,226,210,.12),transparent 60%);
+padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:1060px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.brand h1{font:400 40px/1 var(--display);margin:0;letter-spacing:.5px}
+.brand h1 b{color:var(--yellow);font-weight:400}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.tabs{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px;gap:4px}
+.tabs button{border:0;background:transparent;color:var(--muted);font:600 14px var(--body);padding:9px 18px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--yellow);color:#1b1640}
+button{font-family:var(--body)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* 스테이지 */
+.stage{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.stage{grid-template-columns:1fr}}
+.screen{position:relative;background:linear-gradient(180deg,#1a1e5c,#12154a);border:2px solid var(--line);border-radius:18px;padding:22px 22px 18px;overflow:hidden;min-height:300px;display:flex;flex-direction:column}
+.screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 2px,transparent 2px 4px)}
+.screen .top{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--muted);font-size:13px;letter-spacing:.06em}
+.dots{letter-spacing:2px;color:var(--yellow)}
+.word{font:400 clamp(44px,9vw,76px)/1.05 var(--display);margin:18px 0 6px;color:var(--fg);text-wrap:balance;text-shadow:0 0 24px rgba(65,226,210,.35)}
+.nm{color:var(--cyan);font-weight:600}
+.hint{color:var(--muted);margin-top:2px}
+.turn{display:inline-block;align-self:flex-start;margin-top:10px;background:var(--pink);color:#2a0a1d;font:400 18px var(--display);padding:4px 12px;border-radius:8px}
+.meter{margin-top:auto;padding-top:18px}
+.meter .bar{height:10px;border-radius:5px;background:#0b0d2c;border:1px solid var(--line);overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--yellow),var(--pink));transition:width .06s}
+.meter .time{height:3px;margin-top:6px;background:#0b0d2c;border-radius:2px;overflow:hidden}
+.meter .time i{display:block;height:100%;width:0;background:var(--yellow)}
+.status{margin-top:10px;font-weight:500;min-height:1.5em}
+.status.rec{color:var(--pink)}
+.count{position:absolute;inset:0;display:grid;place-items:center;font:400 140px var(--display);color:var(--yellow);background:rgba(13,15,51,.72);z-index:2}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);font-weight:700;font-size:15px;padding:12px 18px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--cyan)}
+.btn.primary{background:var(--pink);border-color:var(--pink);color:#2a0a1d}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.yellow{background:var(--yellow);border-color:var(--yellow);color:#1b1640}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent}
+/* 결과 */
+.result{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.result .empty{color:var(--muted);margin:auto 0;text-align:center;padding:30px 10px}
+.result .empty strong{display:block;font:400 22px var(--display);color:var(--fg);margin-bottom:6px}
+.score{display:flex;align-items:baseline;gap:6px}
+.score .n{font:400 92px/0.9 var(--display);color:var(--yellow);font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(255,210,63,.35)}
+.score .u{font:400 30px var(--display);color:var(--yellow)}
+.grade{font:400 22px var(--display);color:var(--cyan)}
+.cmt{color:var(--muted);margin-top:-6px}
+.parts{display:grid;gap:8px}
+.part{display:grid;grid-template-columns:62px 1fr 34px;align-items:center;gap:10px;font-size:13px}
+.part .t{height:8px;background:#0b0d2c;border-radius:4px;overflow:hidden}
+.part .t i{display:block;height:100%;background:var(--cyan);border-radius:4px}
+.part b{text-align:right;font-variant-numeric:tabular-nums}
+canvas.viz{width:100%;height:120px;background:#0b0d2c;border:1px solid var(--line);border-radius:10px;display:block}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
+/* 소리 카드 */
+.sect{margin-top:28px}
+.sect h2{font:400 22px var(--display);margin:0 0 4px}
+.sect .sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.card{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:96px}
+.card:hover{border-color:var(--cyan)}
+.card[aria-pressed="true"]{border-color:var(--yellow);box-shadow:0 0 0 1px var(--yellow) inset}
+.card .w{font:400 22px/1.15 var(--display)}
+.card .m{color:var(--muted);font-size:12.5px;display:flex;justify-content:space-between;gap:6px;margin-top:auto}
+.card .best{color:var(--yellow);font-weight:700}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+/* 내기 모드 */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px}
+.setup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+@media (max-width:760px){.setup{grid-template-columns:1fr}}
+label.l{display:block;font-weight:700;margin-bottom:8px}
+.plist{display:grid;gap:8px}
+.pin{display:flex;gap:8px}
+input[type=text],select{width:100%;background:#0b0d2c;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:15px var(--body);min-width:0}
+.x{flex:none;width:44px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:10px;cursor:pointer;font-size:18px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{border:1px solid var(--line);background:#0b0d2c;color:var(--fg);padding:9px 16px;border-radius:10px;cursor:pointer;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--cyan);color:#06302c;border-color:var(--cyan)}
+.note{color:var(--muted);font-size:13px}
+.board{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;gap:8px;align-items:center}
+.chip b{color:var(--yellow);font-variant-numeric:tabular-nums}
+.chip.now{border-color:var(--pink);box-shadow:0 0 0 1px var(--pink) inset}
+.ghead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ghead .r{font:400 22px var(--display)}
+.ghead .r em{font-style:normal;color:var(--muted);font-size:16px}
+.rank{display:grid;gap:8px;margin:12px 0 18px}
+.rk{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:12px;background:#0b0d2c;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.rk .p{font:400 24px var(--display);color:var(--muted)}
+.rk:first-child{border-color:var(--yellow)}
+.rk:first-child .p{color:var(--yellow)}
+.rk .nmv{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.rk .nmv small{display:block;color:var(--muted);font-weight:400}
+.rk .sc{font:400 24px var(--display);font-variant-numeric:tabular-nums}
+.big{font:400 clamp(30px,6vw,46px)/1.15 var(--display);margin:0;text-wrap:balance}
+.big b{color:var(--yellow);font-weight:400}
+.stake{margin-top:8px;font-size:17px}
+.stake b{color:var(--pink)}
+footer{margin-top:36px;color:var(--muted);font-size:12.5px;display:grid;gap:4px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--yellow);color:#1b1640;font-weight:700;padding:10px 18px;border-radius:999px;z-index:9}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="brand">
+<h1>똑같쥬<b>?</b></h1>
+<p>3초 듣고 따라하면 일치율을 매겨드려요</p>
+</div>
+<nav class="tabs" role="tablist">
+<button role="tab" id="tab-solo" aria-selected="true">혼자 연습</button>
+<button role="tab" id="tab-party" aria-selected="false">친구랑 내기</button>
+</nav>
+</header>
+<!-- 혼자 모드 -->
+<section id="v-solo">
+<div id="solo-stage"></div>
+<div class="sect">
+<div class="row" style="justify-content:space-between">
+<div>
+<h2>소리 고르기</h2>
+<p class="sub">카드를 누르면 위 화면에 올라가요. 노란 숫자는 내 최고 점수예요.</p>
+</div>
+<button class="btn ghost" id="b-random">아무거나 골라줘</button>
+</div>
+<div class="grid" id="grid"></div>
+</div>
+</section>
+<!-- 내기 모드 -->
+<section id="v-party" hidden>
+<div id="p-setup" class="panel">
+<div class="setup">
+<div>
+<label class="l">참가자 (2~8명)</label>
+<div class="plist" id="plist"></div>
+<div class="row" style="margin-top:10px"><button class="btn ghost" id="b-addp">+ 참가자 추가</button></div>
+</div>
+<div style="display:grid;gap:18px;align-content:start">
+<div>
+<label class="l">라운드 수</label>
+<div class="seg" id="seg-rounds">
+<button aria-pressed="false" data-v="3">3판</button>
+<button aria-pressed="true" data-v="5">5판</button>
+<button aria-pressed="false" data-v="7">7판</button>
+</div>
+</div>
+<div>
+<label class="l" for="stake">뭐 걸고 할래요? (선택)</label>
+<input type="text" id="stake" maxlength="40" placeholder="예: 꼴찌가 커피 쏘기">
+</div>
+<p class="note">한 대의 폰을 돌려가며 해요. 라운드마다 같은 소리를 모두가 한 번씩, 다시하기 없이 한 방에 도전합니다. 합계 점수가 제일 낮은 사람이 꼴찌!</p>
+<div><button class="btn yellow" id="b-start">게임 시작</button></div>
+</div>
+</div>
+</div>
+<div id="p-game" hidden>
+<div class="ghead">
+<div class="r" id="g-round"></div>
+<button class="btn ghost" id="b-quit">그만하기</button>
+</div>
+<div class="board" id="g-board"></div>
+<div id="party-stage"></div>
+</div>
+<div id="p-round" class="panel" hidden>
+<h2 class="big" id="r-title"></h2>
+<div class="rank" id="r-rank"></div>
+<button class="btn yellow" id="b-next-round"></button>
+</div>
+<div id="p-final" class="panel" hidden>
+<p class="note" style="margin:0 0 6px">최종 결과</p>
+<h2 class="big" id="f-title"></h2>
+<p class="stake" id="f-stake"></p>
+<div class="rank" id="f-rank"></div>
+<div class="row">
+<button class="btn yellow" id="b-again">같은 멤버로 한 판 더</button>
+<button class="btn" id="b-copy-final">결과 복사</button>
+<button class="btn ghost" id="b-reset">처음으로</button>
+</div>
+</div>
+</section>
+<footer>
+<span>모든 소리는 이 페이지가 브라우저에서 직접 합성한 오리지널 효과음이에요. 노래·영화 음원은 쓰지 않아요.</span>
+<span>녹음은 이 기기 안에서만 분석되고 어디에도 저장되거나 전송되지 않아요.</span>
+</footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script>
+/* 똑같쥬? — 사운드 합성 + 일치율 분석 엔진
+모든 소리는 Web Audio로 직접 합성한 오리지널 효과음 (외부 음원 없음) */
+(function (G) {
+'use strict';
+const SR_A = 16000; // 분석용 샘플레이트
+/* ---------------- 합성 헬퍼 ---------------- */
+function mkP(o) {
+o = o || {};
+const sp = o.speed || 1, pf = o.pitch || 1, ff = o.formant || 1;
+return { t: x => x * sp, f: x => x * pf, F: x => x * ff, pf };
+}
+function curve(param, pts, t0, P, map, exp) {
+const v0 = map(pts[0][1]);
+param.setValueAtTime(v0, 0);
+param.setValueAtTime(v0, t0 + P.t(pts[0][0]));
+for (let i = 1; i < pts.length; i++) {
+const t = t0 + P.t(pts[i][0]);
+const v = map(pts[i][1]);
+if (exp && v > 0) param.exponentialRampToValueAtTime(v, t);
+else param.linearRampToValueAtTime(v, t);
+}
+}
+function steps(param, pts, t0, P, map) {
+param.setValueAtTime(map(pts[0][1]), 0);
+for (const [t, v] of pts) param.setValueAtTime(map(v), t0 + P.t(t));
+}
+function env(dur, a, r, pk) {
+a = a == null ? 0.03 : a; r = r == null ? 0.08 : r; pk = pk == null ? 1 : pk;
+return [[0, 0], [a, pk], [Math.max(a, dur - r), pk], [dur, 0]];
+}
+function voice(ctx, out, o) {
+const P = o.P, t0 = P.t(o.t0), dur = o.dur;
+const osc = ctx.createOscillator();
+osc.type = o.type || 'sawtooth';
+if (o.step) steps(osc.frequency, o.pitch, t0, P, P.f);
+else curve(osc.frequency, o.pitch, t0, P, P.f, true);
+if (o.vib) {
+const l = ctx.createOscillator(); l.frequency.value = o.vib[0];
+const lg = ctx.createGain(); lg.gain.value = o.vib[1] * P.pf;
+l.connect(lg).connect(osc.frequency); l.start(t0); l.stop(t0 + P.t(dur) + 0.05);
+}
+const g = ctx.createGain();
+curve(g.gain, o.amp || env(dur), t0, P, x => x * (o.vol || 1));
+let tail = g;
+if (o.trem) {
+const tg = ctx.createGain(); tg.gain.value = 1 - o.trem[1];
+const l = ctx.createOscillator(); l.frequency.value = o.trem[0];
+const lg = ctx.createGain(); lg.gain.value = o.trem[1];
+l.connect(lg).connect(tg.gain); l.start(t0); l.stop(t0 + P.t(dur) + 0.05);
+g.connect(tg); tail = tg;
+}
+if (o.formants) {
+const w = [1, 0.55, 0.3];
+for (let k = 0; k < 3; k++) {
+const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = o.q || 7;
+curve(bp.frequency, o.formants.map(([t, F]) => [t, F[k]]), t0, P, P.F, true);
+const fg = ctx.createGain(); fg.gain.value = w[k] * (o.q || 7) * 0.5;
+osc.connect(bp).connect(fg).connect(g);
+}
+} else if (o.lp) {
+const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = o.lp;
+osc.connect(lp).connect(g);
+} else osc.connect(g);
+tail.connect(out);
+osc.start(t0); osc.stop(t0 + P.t(dur) + 0.05);
+}
+function noise(ctx, out, o) {
+const P = o.P, t0 = P.t(o.t0), d = P.t(o.dur) + 0.05;
+const b = ctx.createBuffer(1, Math.ceil(d * ctx.sampleRate), ctx.sampleRate);
+const ch = b.getChannelData(0);
+for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+const s = ctx.createBufferSource(); s.buffer = b;
+const f = ctx.createBiquadFilter(); f.type = o.ft || 'bandpass'; f.frequency.value = P.F(o.freq || 1000); f.Q.value = o.q || 1;
+const g = ctx.createGain();
+curve(g.gain, o.amp || env(o.dur, 0.005, o.dur * 0.7), t0, P, x => x * (o.vol || 1));
+s.connect(f).connect(g).connect(out); s.start(t0); s.stop(t0 + d);
+}
+/* ---------------- 사운드 목록 ---------------- */
+const SOUNDS = [
+{ id: 'cat', name: '고양이', word: '야~옹', lv: 1, dur: 3.2, hint: '"냐아~옹" 하고 끝을 내려요',
+make(ctx, out, P) {
+for (const t0 of [0.2, 1.85]) voice(ctx, out, { P, t0, dur: 1.1, vib: [5, 8], q: 7,
+pitch: [[0, 520], [0.25, 720], [0.6, 680], [1.1, 430]],
+formants: [[0, [350, 1900, 2700]], [0.15, [850, 1300, 2600]], [0.55, [600, 1000, 2500]], [1.0, [350, 900, 2400]]],
+amp: [[0, 0], [0.08, 0.8], [0.3, 1], [0.85, 0.8], [1.1, 0]] });
+} },
+{ id: 'siren', name: '구급차', word: '삐뽀삐뽀', lv: 1, dur: 4.1, hint: '높은음 낮은음을 번갈아',
+make(ctx, out, P) {
+const pts = []; for (let i = 0; i < 8; i++) pts.push([i * 0.48, i % 2 ? 720 : 960]);
+voice(ctx, out, { P, t0: 0.2, dur: 3.84, type: 'triangle', step: true, pitch: pts, amp: env(3.84, 0.03, 0.06, 0.9) });
+} },
+{ id: 'cuckoo', name: '뻐꾸기', word: '뻐꾹 뻐꾹', lv: 1, dur: 3.3, hint: '두 음, 위에서 아래로',
+make(ctx, out, P) {
+for (const t0 of [0.2, 1.3, 2.4]) {
+voice(ctx, out, { P, t0, dur: 0.22, type: 'triangle', pitch: [[0, 690], [0.22, 680]], amp: env(0.22, 0.015, 0.1) });
+voice(ctx, out, { P, t0: t0 + 0.3, dur: 0.38, type: 'triangle', pitch: [[0, 565], [0.38, 550]], amp: env(0.38, 0.015, 0.22) });
+}
+} },
+{ id: 'dog', name: '강아지', word: '멍! 멍멍!', lv: 1, dur: 3.0, hint: '짧고 굵게 끊어서',
+make(ctx, out, P) {
+for (const t0 of [0.25, 1.2, 1.5, 2.45]) {
+voice(ctx, out, { P, t0, dur: 0.2, q: 4, pitch: [[0, 420], [0.05, 480], [0.2, 300]],
+formants: [[0, [700, 1200, 2500]], [0.2, [500, 1000, 2400]]], amp: [[0, 0], [0.02, 1], [0.1, 0.7], [0.2, 0]] });
+noise(ctx, out, { P, t0, dur: 0.07, freq: 1300, q: 1.5, vol: 0.35 });
+}
+} },
+{ id: 'owl', name: '부엉이', word: '부-엉 부-엉', lv: 1, dur: 3.1, hint: '낮고 둥글게',
+make(ctx, out, P) {
+for (const t0 of [0.2, 1.7]) {
+voice(ctx, out, { P, t0, dur: 0.28, type: 'triangle', q: 5, pitch: [[0, 380], [0.28, 390]],
+formants: [[0, [300, 700, 2300]]], amp: env(0.28, 0.06, 0.08) });
+voice(ctx, out, { P, t0: t0 + 0.36, dur: 0.75, type: 'triangle', q: 5, pitch: [[0, 430], [0.2, 440], [0.75, 340]],
+formants: [[0, [550, 900, 2400]], [0.75, [450, 850, 2400]]], amp: env(0.75, 0.06, 0.3) });
+}
+} },
+{ id: 'sheep', name: '양', word: '메에에에~', lv: 2, dur: 2.8, hint: '목을 떨면서 길게',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.2, dur: 2.3, vib: [7, 35], trem: [7, 0.45], q: 6,
+pitch: [[0, 380], [0.2, 440], [2.0, 400], [2.3, 330]],
+formants: [[0, [300, 1000, 2400]], [0.15, [500, 1800, 2500]]], amp: [[0, 0], [0.12, 1], [1.9, 0.9], [2.3, 0]] });
+} },
+{ id: 'wolf', name: '늑대', word: '아우우~', lv: 2, dur: 3.8, hint: '쭉 올렸다가 천천히 내려요',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.2, dur: 3.4, vib: [5, 10], q: 6,
+pitch: [[0, 280], [0.6, 520], [1.6, 560], [2.8, 420], [3.4, 300]],
+formants: [[0, [800, 1250, 2600]], [1.2, [700, 1100, 2500]], [2.0, [350, 750, 2300]]],
+amp: [[0, 0], [0.3, 0.9], [2.6, 1], [3.4, 0]] });
+} },
+{ id: 'ufo', name: 'UFO', word: '우우웅~', lv: 2, dur: 3.6, hint: '흔들리면서 점점 높게',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.2, dur: 3.2, type: 'sine', vib: [6, 45], pitch: [[0, 280], [3.2, 520]],
+amp: [[0, 0], [0.3, 1], [2.9, 1], [3.2, 0]] });
+} },
+{ id: 'bomb', name: '폭탄 낙하', word: '휘이이~ 쾅!', lv: 2, dur: 4.0, hint: '휘파람이 쭉 떨어지다가 쾅',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.2, dur: 2.5, type: 'sine', pitch: [[0, 1500], [2.5, 450]], amp: [[0, 0], [0.2, 0.6], [2.45, 0.9], [2.5, 0]] });
+noise(ctx, out, { P, t0: 2.75, dur: 1.0, ft: 'lowpass', freq: 400, q: 0.7, vol: 1.6, amp: [[0, 0], [0.01, 1], [0.3, 0.5], [1.0, 0]] });
+} },
+{ id: 'laser', name: '레이저 총', word: '퓽 퓽 퓽', lv: 2, dur: 3.1, hint: '높은 데서 뚝 떨어지게',
+make(ctx, out, P) {
+for (let i = 0; i < 5; i++) voice(ctx, out, { P, t0: 0.2 + i * 0.55, dur: 0.3, type: 'triangle',
+pitch: [[0, 1400], [0.3, 280]], amp: [[0, 0], [0.01, 1], [0.3, 0]] });
+} },
+{ id: 'mosquito', name: '모기', word: '애애앵~', lv: 3, dur: 3.4, hint: '코로 가늘게, 커졌다 작아졌다',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.15, dur: 3.1, vib: [9, 12], q: 8,
+pitch: [[0, 560], [1, 600], [2, 540], [3.1, 590]], formants: [[0, [700, 1700, 2600]]],
+amp: [[0, 0], [0.6, 0.5], [1.4, 1], [2.2, 0.4], [2.9, 0.9], [3.1, 0]] });
+} },
+{ id: 'robot', name: '로봇', word: '삐-빅 삐빅', lv: 2, dur: 3.0, hint: '기계처럼 딱딱 끊어서',
+make(ctx, out, P) {
+const ev = [[0.2, 900, 0.35], [0.62, 620, 0.14], [1.2, 900, 0.12], [1.37, 620, 0.12], [2.0, 900, 0.35], [2.42, 620, 0.14]];
+for (const [t0, f, d] of ev) voice(ctx, out, { P, t0, dur: d, type: 'square', lp: 2500, vol: 0.5, pitch: [[0, f], [d, f]], amp: env(d, 0.01, 0.02) });
+} },
+{ id: 'bell', name: '초인종', word: '딩-동 딩-동', lv: 1, dur: 4.0, hint: '"딩"은 높게, "동"은 낮게',
+make(ctx, out, P) {
+for (const t0 of [0.2, 1.95]) {
+voice(ctx, out, { P, t0, dur: 1.0, type: 'sine', pitch: [[0, 659], [1, 659]], amp: [[0, 0], [0.01, 1], [0.5, 0.35], [1.0, 0]] });
+voice(ctx, out, { P, t0: t0 + 0.6, dur: 1.3, type: 'sine', pitch: [[0, 523], [1.3, 523]], amp: [[0, 0], [0.01, 1], [0.6, 0.35], [1.3, 0]] });
+}
+} },
+{ id: 'rooster', name: '닭', word: '꼬끼오~', lv: 3, dur: 3.0, hint: '"꼬끼" 짧게, "오~"는 높게 길게',
+make(ctx, out, P) {
+noise(ctx, out, { P, t0: 0.2, dur: 0.04, freq: 2500, vol: 0.3 });
+voice(ctx, out, { P, t0: 0.22, dur: 0.18, q: 6, pitch: [[0, 480], [0.18, 500]], formants: [[0, [450, 850, 2500]]], amp: env(0.18, 0.02, 0.05) });
+noise(ctx, out, { P, t0: 0.46, dur: 0.04, freq: 3000, vol: 0.3 });
+voice(ctx, out, { P, t0: 0.48, dur: 0.2, q: 6, pitch: [[0, 620], [0.2, 650]], formants: [[0, [300, 2200, 3000]]], amp: env(0.2, 0.02, 0.05) });
+voice(ctx, out, { P, t0: 0.72, dur: 1.9, q: 6, vib: [6, 12], pitch: [[0, 700], [0.3, 770], [1.3, 720], [1.9, 470]],
+formants: [[0, [450, 850, 2500]], [1.4, [400, 800, 2400]], [1.9, [330, 750, 2300]]], amp: [[0, 0], [0.06, 1], [1.4, 0.9], [1.9, 0]] });
+} },
+{ id: 'duck', name: '오리', word: '꽥꽥 꽥꽥', lv: 2, dur: 3.0, hint: '코맹맹이 소리로 짧게',
+make(ctx, out, P) {
+for (const t0 of [0.2, 0.55, 1.4, 1.75, 2.55]) {
+voice(ctx, out, { P, t0, dur: 0.22, q: 10, pitch: [[0, 310], [0.22, 270]], formants: [[0, [900, 1600, 2600]]],
+amp: [[0, 0], [0.02, 1], [0.16, 0.6], [0.22, 0]] });
+noise(ctx, out, { P, t0, dur: 0.05, freq: 2000, vol: 0.25 });
+}
+} },
+{ id: 'cow', name: '소', word: '음메~', lv: 2, dur: 3.3, hint: '배에 힘주고 낮게',
+make(ctx, out, P) {
+voice(ctx, out, { P, t0: 0.2, dur: 3.0, q: 5,
+pitch: [[0, 130], [0.4, 150], [1.5, 175], [2.6, 140], [3.0, 115]],
+formants: [[0, [250, 1000, 2300]], [0.5, [250, 1000, 2300]], [0.8, [500, 1700, 2500]]],
+amp: [[0, 0], [0.3, 0.6], [0.6, 0.5], [0.9, 1], [2.6, 0.9], [3.0, 0]] });
+} }
+];
+async function render(snd, sr, opts) {
+const P = mkP(opts);
+const dur = P.t(snd.dur) + 0.2;
+const ctx = new OfflineAudioContext(1, Math.ceil(dur * sr), sr);
+const out = ctx.createGain(); out.connect(ctx.destination);
+snd.make(ctx, out, P);
+const buf = await ctx.startRendering();
+const d = buf.getChannelData(0);
+let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+if (pk > 0) for (let i = 0; i < d.length; i++) d[i] = d[i] / pk * 0.8;
+return buf;
+}
+async function toAnalysis(buf) {
+if (buf.sampleRate === SR_A) return buf.getChannelData(0).slice();
+const len = Math.ceil(buf.duration * SR_A);
+const oc = new OfflineAudioContext(1, len, SR_A);
+const s = oc.createBufferSource(); s.buffer = buf; s.connect(oc.destination); s.start();
+const r = await oc.startRendering();
+return r.getChannelData(0).slice();
+}
+/* ---------------- 분석 ---------------- */
+const HOP = 160, WIN = 512, YW = 400, TAU_MAX = Math.floor(SR_A / 60), TAU_MIN = Math.floor(SR_A / 1600);
+const NMEL = 26, NCEP = 12;
+const HANN = new Float32Array(WIN).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (WIN - 1)));
+const melF = f => 2595 * Math.log10(1 + f / 700), melI = m => 700 * (Math.pow(10, m / 2595) - 1);
+const MELBANK = (() => {
+const lo = melF(80), hi = melF(7600), pts = [];
+for (let i = 0; i < NMEL + 2; i++) pts.push(Math.floor((WIN + 1) * melI(lo + (hi - lo) * i / (NMEL + 1)) / SR_A));
+const bank = [];
+for (let m = 1; m <= NMEL; m++) {
+const w = new Float32Array(WIN / 2 + 1);
+for (let k = pts[m - 1]; k < pts[m]; k++) w[k] = (k - pts[m - 1]) / Math.max(1, pts[m] - pts[m - 1]);
+for (let k = pts[m]; k <= pts[m + 1]; k++) w[k] = (pts[m + 1] - k) / Math.max(1, pts[m + 1] - pts[m]);
+bank.push(w);
+}
+return bank;
+})();
+function fft(re, im) {
+const n = re.length;
+for (let i = 1, j = 0; i < n; i++) {
+let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+}
+for (let len = 2; len <= n; len <<= 1) {
+const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+for (let i = 0; i < n; i += len) {
+let cr = 1, ci = 0;
+for (let j = 0; j < len / 2; j++) {
+const ur = re[i + j], ui = im[i + j];
+const vr = re[i + j + len / 2] * cr - im[i + j + len / 2] * ci;
+const vi = re[i + j + len / 2] * ci + im[i + j + len / 2] * cr;
+re[i + j] = ur + vr; im[i + j] = ui + vi; re[i + j + len / 2] = ur - vr; im[i + j + len / 2] = ui - vi;
+const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+}
+}
+}
+}
+function yin(x, s) {
+const d = new Float32Array(TAU_MAX + 1);
+for (let tau = 1; tau <= TAU_MAX; tau++) {
+let sum = 0;
+for (let j = 0; j < YW; j++) { const v = x[s + j] - x[s + j + tau]; sum += v * v; }
+d[tau] = sum;
+}
+let run = 0; const c = new Float32Array(TAU_MAX + 1); c[0] = 1;
+for (let tau = 1; tau <= TAU_MAX; tau++) { run += d[tau]; c[tau] = run > 0 ? d[tau] * tau / run : 1; }
+let best = -1;
+for (let tau = TAU_MIN; tau < TAU_MAX; tau++) {
+if (c[tau] < 0.15) { while (tau + 1 < TAU_MAX && c[tau + 1] < c[tau]) tau++; best = tau; break; }
+}
+if (best < 0) { let m = 1e9; for (let tau = TAU_MIN; tau < TAU_MAX; tau++) if (c[tau] < m) { m = c[tau]; best = tau; } }
+let t = best;
+if (best > 1 && best < TAU_MAX) {
+const a = c[best - 1], b = c[best], cc = c[best + 1], den = a - 2 * b + cc;
+if (den !== 0) t = best + 0.5 * (a - cc) / den;
+}
+return { f: SR_A / t, ap: c[best] };
+}
+function median(a) { if (!a.length) return 0; const b = [...a].sort((x, y) => x - y); return b[b.length >> 1]; }
+function pct(a, p) { const b = [...a].sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(p * b.length))]; }
+function analyze(x) {
+const need = Math.max(WIN, YW + TAU_MAX + 1);
+const nF = Math.max(0, Math.floor((x.length - need) / HOP));
+const db = new Float32Array(nF), f0 = new Float32Array(nF), ap = new Float32Array(nF), mf = [];
+const re = new Float32Array(WIN), im = new Float32Array(WIN), mel = new Float32Array(NMEL);
+for (let i = 0; i < nF; i++) {
+const s = i * HOP;
+let e = 0; for (let j = 0; j < WIN; j++) e += x[s + j] * x[s + j];
+db[i] = 10 * Math.log10(e / WIN + 1e-10);
+const y = yin(x, s); f0[i] = y.f; ap[i] = y.ap;
+for (let j = 0; j < WIN; j++) { re[j] = x[s + j] * HANN[j]; im[j] = 0; }
+fft(re, im);
+for (let m = 0; m < NMEL; m++) {
+const w = MELBANK[m]; let sum = 0;
+for (let k = 0; k <= WIN / 2; k++) if (w[k]) sum += w[k] * (re[k] * re[k] + im[k] * im[k]);
+mel[m] = Math.log(sum + 1e-6);
+}
+const c = new Float32Array(NCEP);
+for (let n = 1; n <= NCEP; n++) { let sum = 0; for (let m = 0; m < NMEL; m++) sum += mel[m] * Math.cos(Math.PI * n * (m + 0.5) / NMEL); c[n - 1] = sum; }
+mf.push(c);
+}
+if (!nF) return { silent: true };
+const maxdb = Math.max(...db);
+if (maxdb < -58) return { silent: true, maxdb };
+const floor = pct(Array.from(db), 0.03);
+const thr = Math.min(maxdb - 15, Math.max(maxdb - 32, floor + 8));
+let a = 0, b = nF - 1;
+while (a < nF && db[a] < thr) a++;
+while (b > a && db[b] < thr) b--;
+a = Math.max(0, a - 2); b = Math.min(nF - 1, b + 2);
+if (b - a < 10) return { silent: true, maxdb };
+const n = b - a + 1;
+const F = { n, dur: n * HOP / SR_A, e: [], v: [], st: [], mf: [] };
+const raw = [];
+for (let i = a; i <= b; i++) {
+const voiced = ap[i] < 0.3 && db[i] > thr + 4 && f0[i] > 60 && f0[i] < 1600;
+F.e.push(Math.max(-40, db[i] - maxdb));
+F.v.push(voiced ? 1 : 0);
+raw.push(voiced ? 12 * Math.log2(f0[i] / 100) : NaN);
+F.mf.push(mf[i]);
+}
+for (let i = 0; i < n; i++) {
+if (!F.v[i]) { F.st.push(NaN); continue; }
+const w = []; for (let k = -2; k <= 2; k++) { const v = raw[i + k]; if (v === v && v !== undefined) w.push(v); }
+F.st.push(median(w));
+}
+const vs = F.st.filter(v => v === v);
+F.vr = vs.length / n;
+F.med = median(vs);
+for (let i = 1; i < n; i++) if (F.st[i] === F.st[i] && F.st[i - 1] === F.st[i - 1]) {
+const d = F.st[i] - F.st[i - 1];
+if (Math.abs(Math.abs(d) - 12) < 2) F.st[i] -= 12 * Math.sign(d);
+}
+const mean = new Float32Array(NCEP);
+for (const c of F.mf) for (let k = 0; k < NCEP; k++) mean[k] += c[k] / n;
+F.mf = F.mf.map(c => c.map((v, k) => v - mean[k]));
+return F;
+}
+function dtw(A, B, dist) {
+const n = A.length, m = B.length, INF = 1e18;
+const band = Math.max(Math.abs(n - m) + 5, Math.floor(Math.max(n, m) * 0.15));
+const D = new Float64Array((n + 1) * (m + 1)).fill(INF); D[0] = 0;
+const W = m + 1;
+for (let i = 1; i <= n; i++) {
+const jc = Math.round(i * m / n);
+for (let j = Math.max(1, jc - band); j <= Math.min(m, jc + band); j++) {
+const c = dist(A[i - 1], B[j - 1]);
+D[i * W + j] = c + Math.min(D[(i - 1) * W + j], D[i * W + j - 1], D[(i - 1) * W + j - 1]);
+}
+}
+const path = []; let i = n, j = m;
+while (i > 0 && j > 0) {
+path.push([i - 1, j - 1]);
+const d = D[(i - 1) * W + j - 1], u = D[(i - 1) * W + j], l = D[i * W + j - 1];
+if (d <= u && d <= l) { i--; j--; } else if (u < l) i--; else j--;
+}
+return path.reverse();
+}
+function resample(a, k) {
+const out = []; for (let i = 0; i < k; i++) { const p = i * (a.length - 1) / (k - 1), lo = Math.floor(p), f = p - lo; out.push(a[lo] * (1 - f) + (a[Math.min(a.length - 1, lo + 1)]) * f); }
+return out;
+}
+function pearson(a, b) {
+const n = a.length, ma = a.reduce((s, v) => s + v, 0) / n, mb = b.reduce((s, v) => s + v, 0) / n;
+let sab = 0, saa = 0, sbb = 0;
+for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; }
+return saa * sbb > 0 ? sab / Math.sqrt(saa * sbb) : 0;
+}
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+function compare(R, U) {
+if (!U || U.silent) return { silent: true, score: 0 };
+const vec = F => F.e.map((e, i) => ({ e: e / 10, v: F.v[i], p: F.v[i] ? (F.st[i] - F.med) / 3 : 0, m: F.mf[i] }));
+const A = vec(R), B = vec(U);
+const path = dtw(A, B, (x, y) => {
+let s = (x.e - y.e) ** 2 + (x.v - y.v) ** 2 * 0.5 + (x.p - y.p) ** 2 * x.v * y.v * 2, mm = 0;
+for (let k = 0; k < NCEP; k++) mm += (x.m[k] - y.m[k]) ** 2;
+return Math.sqrt(s + mm * 0.0004);
+});
+let err = 0, cv = 0, agree = 0;
+for (const [i, j] of path) {
+if (R.v[i] === U.v[j]) agree++;
+if (R.v[i] && U.v[j]) { err += Math.min(12, Math.abs((R.st[i] - R.med) - (U.st[j] - U.med))); cv++; }
+}
+const vAgree = agree / path.length;
+let pitch;
+if (R.vr < 0.15) pitch = vAgree;
+else pitch = cv < 5 ? 0.05 : clamp(1 - (err / cv - 0.8) / 5) * (0.55 + 0.45 * vAgree);
+const contour = F => { const c = [], k = 48; let last = NaN;
+const fill = F.st.map(v => v === v ? (last = v - F.med) : NaN);
+let nx = NaN; for (let i = fill.length - 1; i >= 0; i--) { if (fill[i] === fill[i]) nx = fill[i]; else fill[i] = nx; }
+last = NaN; for (let i = 0; i < fill.length; i++) { if (fill[i] === fill[i]) last = fill[i]; else fill[i] = last === last ? last : 0; }
+return resample(fill, k); };
+let lin = 1;
+if (R.vr >= 0.15 && U.vr > 0.05) {
+const cr = contour(R), cu = contour(U); let e2 = 0;
+for (let i = 0; i < cr.length; i++) e2 += Math.min(12, Math.abs(cr[i] - cu[i]));
+lin = clamp(1 - (e2 / cr.length - 0.8) / 4.5);
+} else if (R.vr >= 0.15) lin = 0;
+pitch = 0.5 * pitch + 0.5 * lin;
+let td = 0, tn = 0;
+for (const [i, j] of path) {
+if (R.e[i] < -22 || U.e[j] < -22) continue;
+let s = 0; for (let k = 0; k < NCEP; k++) s += (R.mf[i][k] - U.mf[j][k]) ** 2; td += Math.sqrt(s); tn++;
+}
+td = tn ? td / tn : 80;
+const timbre = clamp(1 - (td - 8) / 45);
+const er = resample(R.e, 64).map(v => (v + 40) / 40), eu = resample(U.e, 64).map(v => (v + 40) / 40);
+const r = pearson(er, eu);
+let mad = 0; for (let i = 0; i < 64; i++) mad += Math.abs(er[i] - eu[i]); mad /= 64;
+const rhythm = 0.55 * clamp((r - 0.05) / 0.8) + 0.45 * clamp(1 - mad * 2.2);
+const ratio = Math.min(R.dur, U.dur) / Math.max(R.dur, U.dur);
+const length = clamp((ratio - 0.4) / 0.5);
+const vf = R.vr > 0.2 ? clamp(U.vr / (R.vr * 0.5)) : 1;
+const raw0 = 0.45 * pitch + 0.15 * timbre + 0.25 * rhythm + 0.15 * length;
+const raw = raw0 * (0.3 + 0.7 * vf);
+const score = Math.round(100 * Math.pow(clamp((raw - 0.22) / 0.72), 0.85));
+return { score, raw, parts: { pitch, timbre, rhythm, length }, dbg: { err: cv ? err / cv : null, vAgree, td, r, mad, ratio } };
+}
+G.Mimic = { SOUNDS, render, toAnalysis, analyze, compare, SR_A };
+})(window);
+</script>
+<script>
+(function(){
+'use strict';
+const M = window.Mimic;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = {
+get(k, d){ try{ const v = localStorage.getItem('ddg.'+k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+set(k, v){ try{ localStorage.setItem('ddg.'+k, JSON.stringify(v)); }catch(e){} }
+};
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2200); }
+async function copy(text){
+try{ await navigator.clipboard.writeText(text); toast('복사했어요'); }
+catch(e){ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); toast('복사했어요'); }catch(_){ toast('복사가 안 돼요'); } ta.remove(); }
+}
+/* ---------- 오디오 ---------- */
+let actx = null, micStream = null, playing = null;
+async function audio(){
+if(!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+if(actx.state === 'suspended') await actx.resume();
+return actx;
+}
+const refCache = {};
+async function getRef(snd){
+if(!refCache[snd.id]){
+refCache[snd.id] = (async () => {
+const buf = await M.render(snd, 44100);
+const feat = M.analyze(await M.toAnalysis(buf));
+return { buf, feat };
+})();
+}
+return refCache[snd.id];
+}
+async function playRef(snd){
+const ctx = await audio(); const { buf } = await getRef(snd);
+if(playing){ try{ playing.stop(); }catch(e){} }
+const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(); playing = s;
+return new Promise(r => s.onended = () => { if(playing === s) playing = null; r(); });
+}
+function beep(f, d, when){
+const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f;
+const t = actx.currentTime + (when||0); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.18, t+0.01); g.gain.linearRampToValueAtTime(0, t+d);
+o.connect(g).connect(actx.destination); o.start(t); o.stop(t+d+0.02);
+}
+function fanfare(score){
+const notes = score >= 90 ? [523,659,784,1047,1319] : score >= 70 ? [523,659,784,1047] : score >= 45 ? [523,587,659] : [392,370,349];
+notes.forEach((f,i) => beep(f, 0.16, i*0.11));
+}
+async function getMic(){
+if(micStream && micStream.active) return micStream;
+if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomic');
+micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+return micStream;
+}
+function record(seconds, onTick, abortRef){
+return new Promise(resolve => {
+const ctx = actx, src = ctx.createMediaStreamSource(micStream);
+const proc = ctx.createScriptProcessor(2048, 1, 1), mute = ctx.createGain(); mute.gain.value = 0;
+const chunks = []; const t0 = ctx.currentTime;
+proc.onaudioprocess = e => {
+const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
+let pk = 0; for(let i=0;i<d.length;i+=4) pk = Math.max(pk, Math.abs(d[i]));
+const el = ctx.currentTime - t0; onTick && onTick(pk, el / seconds);
+if(el >= seconds || abortRef.stop) finish();
+};
+let done = false;
+function finish(){
+if(done) return; done = true;
+proc.onaudioprocess = null; try{ src.disconnect(); proc.disconnect(); mute.disconnect(); }catch(e){}
+const len = chunks.reduce((s,c) => s + c.length, 0);
+const buf = ctx.createBuffer(1, Math.max(1,len), ctx.sampleRate); const ch = buf.getChannelData(0);
+let o = 0; for(const c of chunks){ ch.set(c, o); o += c.length; }
+resolve(buf);
+}
+src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+});
+}
+/* ---------- 채점 문구 ---------- */
+function grade(s){
+if(s >= 95) return ['복붙 수준', '원본이랑 구분이 안 돼요. 혹시 스피커 갖다 댔어요?'];
+if(s >= 85) return ['성대 장인', '이 정도면 개인기로 써도 됩니다.'];
+if(s >= 72) return ['꽤 닮았어요', '친구들이 바로 알아들을 수준이에요.'];
+if(s >= 55) return ['느낌은 있어요', '방향은 맞아요. 높낮이를 조금 더 과감하게!'];
+if(s >= 35) return ['누구세요?', '뭔가를 흉내 내긴 했는데… 다시 들어볼까요?'];
+return ['다른 생물', '이건 새로운 종의 울음소리예요.'];
+}
+function tip(parts){
+const k = Object.entries(parts).sort((a,b) => a[1]-b[1])[0][0];
+return { pitch:'음높이 흐름을 더 따라가 보세요. 올라가고 내려가는 지점이 중요해요.', timbre:'목소리 색깔을 바꿔보세요. 코맹맹이, 휘파람, 굵은 소리 등.', rhythm:'끊고 이어지는 박자를 맞춰보세요.', length:'전체 길이를 원본에 맞춰보세요.' }[k];
+}
+const PART_NAMES = { pitch:'음높이', timbre:'음색', rhythm:'리듬', length:'길이' };
+/* ---------- 스테이지 (두 모드 공용) ---------- */
+function makeStage(root, opts){
+root.innerHTML = `
+<div class="stage">
+<div>
+<div class="screen">
+<div class="top"><span class="lvl"></span><span class="dur"></span></div>
+<div class="word"></div>
+<div class="nm"></div>
+<div class="hint"></div>
+<div class="turn" hidden></div>
+<div class="meter"><div class="bar"><i></i></div><div class="time"><i></i></div></div>
+<div class="status">원본을 듣고 따라해 보세요</div>
+<div class="count" hidden></div>
+</div>
+<div class="btns">
+<button class="btn b-listen">▶ 원본 듣기</button>
+<button class="btn primary b-rec">● 따라하기</button>
+<button class="btn b-stop" hidden>■ 녹음 끝</button>
+</div>
+</div>
+<div class="result"></div>
+</div>`;
+const q = s => root.querySelector(s);
+const st = { snd:null, busy:false, abort:{} };
+const setStatus = (t, rec) => { const e = q('.status'); e.textContent = t; e.classList.toggle('rec', !!rec); };
+function setSound(snd, turn){
+st.snd = snd;
+q('.lvl').innerHTML = '난이도 <span class="dots">' + '●'.repeat(snd.lv) + '<span style="opacity:.3">' + '●'.repeat(3-snd.lv) + '</span></span>';
+q('.dur').textContent = snd.dur.toFixed(1) + '초';
+q('.word').textContent = snd.word;
+q('.nm').textContent = snd.name;
+q('.hint').textContent = '팁: ' + snd.hint;
+const t = q('.turn'); t.hidden = !turn; if(turn) t.textContent = turn + ' 차례';
+q('.bar i').style.width = '0'; q('.time i').style.width = '0';
+setStatus('원본을 듣고 따라해 보세요');
+showEmpty(opts.emptyText);
+getRef(snd);
+}
+function showEmpty(html){ q('.result').innerHTML = `<div class="empty">${html || '<strong>점수는 여기에</strong>원본 듣기 → 따라하기를 누르면<br>3, 2, 1 후 녹음이 시작돼요.'}</div>`; }
+function lock(on){ st.busy = on; q('.b-listen').disabled = on; q('.b-rec').disabled = on || st.recDisabled; }
+q('.b-listen').onclick = async () => { if(st.busy || !st.snd) return; lock(true); setStatus('재생 중…'); await playRef(st.snd); setStatus('이제 따라해 보세요'); lock(false); };
+q('.b-stop').onclick = () => { st.abort.stop = true; };
+q('.b-rec').onclick = async () => {
+if(st.busy || !st.snd) return;
+lock(true);
+try{
+await audio();
+try{ await getMic(); }
+catch(e){
+setStatus('마이크를 쓸 수 없어요', true);
+showEmpty('<strong>마이크 권한이 필요해요</strong>주소창 옆 자물쇠(또는 설정)에서 이 사이트의 마이크를 허용한 뒤 다시 눌러주세요.' + (window.isSecureContext ? '' : '<br>https 주소에서만 마이크가 동작해요.'));
+lock(false); return;
+}
+const ref = await getRef(st.snd);
+const cnt = q('.count'); cnt.hidden = false;
+for(const n of [3,2,1]){ cnt.textContent = n; beep(n === 1 ? 880 : 660, 0.12); await sleep(700); }
+cnt.hidden = true;
+setStatus('녹음 중… 지금 따라하세요!', true);
+q('.b-stop').hidden = false;
+st.abort = {};
+const secs = st.snd.dur + 1.0;
+const buf = await record(secs, (pk, p) => { q('.bar i').style.width = Math.min(100, pk*160) + '%'; q('.time i').style.width = Math.min(100, p*100) + '%'; }, st.abort);
+q('.b-stop').hidden = true; q('.bar i').style.width = '0';
+setStatus('분석 중…');
+await sleep(30);
+const U = M.analyze(await M.toAnalysis(buf));
+const res = M.compare(ref.feat, U);
+res.R = ref.feat; res.U = U;
+if(res.silent){
+setStatus('소리가 거의 안 들렸어요', true);
+showEmpty('<strong>소리가 안 잡혔어요</strong>마이크에 조금 더 가까이, 크게 해보세요.');
+opts.onSilent && opts.onSilent();
+}else{
+setStatus('채점 완료!');
+fanfare(res.score);
+showResult(res);
+opts.onResult && opts.onResult(res, st.snd);
+}
+}finally{ q('.b-stop').hidden = true; lock(false); }
+};
+function showResult(res){
+const [g, c] = grade(res.score);
+const el = q('.result');
+el.innerHTML = `
+<div class="score"><span class="n">0</span><span class="u">점</span></div>
+<div class="grade">${esc(g)}</div>
+<div class="cmt">${esc(c)}</div>
+<div class="parts">${Object.entries(res.parts).map(([k,v]) => `<div class="part"><span>${PART_NAMES[k]}</span><span class="t"><i style="width:${Math.round(v*100)}%"></i></span><b>${Math.round(v*100)}</b></div>`).join('')}</div>
+<canvas class="viz" width="600" height="160"></canvas>
+<div class="legend"><span style="--c:var(--cyan)">원본 음높이</span><span style="--c:var(--pink)">내 음높이</span><span style="--c:#3a3f8f">음량</span></div>
+${res.score < 95 ? `<div class="note">${esc(tip(res.parts))}</div>` : ''}
+<div class="btns extra"></div>`;
+const n = el.querySelector('.n'), target = res.score, t0 = performance.now();
+(function tick(t){ const p = Math.min(1, (t - t0) / 900); n.textContent = Math.round(target * (1 - Math.pow(1-p, 3))); if(p < 1) requestAnimationFrame(tick); })(t0);
+drawViz(el.querySelector('canvas'), res.R, res.U);
+if(window.matchMedia('(max-width:820px)').matches) el.scrollIntoView({ behavior:'smooth', block:'start' });
+opts.extraButtons && opts.extraButtons(el.querySelector('.extra'), res);
+}
+return { setSound, setStatus, showEmpty, q, st, setRecDisabled(v){ st.recDisabled = v; q('.b-rec').disabled = v || st.busy; } };
+}
+function drawViz(cv, R, U){
+const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 600, h = cv.clientHeight || 120;
+cv.width = w * dpr; cv.height = h * dpr;
+const g = cv.getContext('2d'); g.scale(dpr, dpr);
+const css = getComputedStyle(document.documentElement);
+const cyan = css.getPropertyValue('--cyan').trim(), pink = css.getPropertyValue('--pink').trim();
+g.fillStyle = 'rgba(80,88,190,.35)';
+R.e.forEach((e, i) => { const x = i / (R.n-1) * w, bh = (e + 40) / 40 * h * 0.45; g.fillRect(x, h - bh, Math.max(1, w / R.n), bh); });
+g.fillStyle = 'rgba(255,95,162,.18)';
+U.e.forEach((e, i) => { const x = i / (U.n-1) * w, bh = (e + 40) / 40 * h * 0.45; g.fillRect(x, h - bh, Math.max(1, w / U.n), bh); });
+const all = [...R.st.map(v => v - R.med), ...U.st.map(v => v - U.med)].filter(v => v === v);
+const lo = Math.min(-6, ...all), hi = Math.max(6, ...all);
+const y = v => 10 + (1 - (v - lo) / (hi - lo)) * (h - 20);
+for(const [F, col] of [[R, cyan], [U, pink]]){
+g.strokeStyle = col; g.lineWidth = 2.5; g.lineJoin = 'round'; g.beginPath(); let pen = false;
+F.st.forEach((v, i) => { if(v !== v){ pen = false; return; } const x = i / (F.n-1) * w; if(!pen){ g.moveTo(x, y(v - F.med)); pen = true; } else g.lineTo(x, y(v - F.med)); });
+g.stroke();
+}
+}
+/* ---------- 혼자 모드 ---------- */
+const best = store.get('best', {});
+const grid = $('#grid');
+function renderGrid(sel){
+grid.innerHTML = M.SOUNDS.map(s => `<button class="card" data-id="${s.id}" aria-pressed="${s.id === sel}">
+<span class="w">${esc(s.word)}</span><span class="m"><span>${esc(s.name)} · ${'●'.repeat(s.lv)}</span><span class="best">${best[s.id] != null ? best[s.id] : ''}</span></span></button>`).join('');
+}
+let soloSel = store.get('sel', 'cat');
+if(!M.SOUNDS.find(s => s.id === soloSel)) soloSel = 'cat';
+const solo = makeStage($('#solo-stage'), {
+onResult(res, snd){
+if(best[snd.id] == null || res.score > best[snd.id]){ best[snd.id] = res.score; store.set('best', best); if(res.score > 0) toast('최고 기록 갱신!'); }
+renderGrid(snd.id);
+},
+extraButtons(box, res){
+const snd = solo.st.snd;
+box.innerHTML = `<button class="btn">결과 복사</button><button class="btn ghost">다른 소리</button>`;
+box.children[0].onclick = () => copy(`[똑같쥬?] ${snd.name} "${snd.word}" 성대모사 ${res.score}점 (${grade(res.score)[0]})\n${location.href}`);
+box.children[1].onclick = pickRandom;
+}
+});
+function selectSolo(id){
+soloSel = id; store.set('sel', id);
+solo.setSound(M.SOUNDS.find(s => s.id === id)); renderGrid(id);
+}
+function pickRandom(){
+const pool = M.SOUNDS.filter(s => s.id !== soloSel);
+selectSolo(pool[Math.floor(Math.random() * pool.length)].id);
+$('#solo-stage').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+grid.onclick = e => { const c = e.target.closest('.card'); if(c && !solo.st.busy) { selectSolo(c.dataset.id); $('#solo-stage').scrollIntoView({ behavior:'smooth', block:'start' }); } };
+$('#b-random').onclick = () => { if(!solo.st.busy) pickRandom(); };
+selectSolo(soloSel);
+/* ---------- 탭 ---------- */
+function showTab(t){
+$('#tab-solo').setAttribute('aria-selected', t === 'solo'); $('#tab-party').setAttribute('aria-selected', t === 'party');
+$('#v-solo').hidden = t !== 'solo'; $('#v-party').hidden = t !== 'party';
+}
+$('#tab-solo').onclick = () => showTab('solo');
+$('#tab-party').onclick = () => showTab('party');
+if(location.hash === '#party') showTab('party');
+/* ---------- 내기 모드 ---------- */
+let names = store.get('players', ['플레이어 1', '플레이어 2']);
+let rounds = 5;
+const plist = $('#plist');
+function renderPlayers(){
+plist.innerHTML = names.map((n, i) => `<div class="pin"><input type="text" id="pn-${i}" maxlength="12" value="${esc(n)}" aria-label="참가자 ${i+1}">${names.length > 2 ? `<button class="x" data-i="${i}" aria-label="삭제">×</button>` : ''}</div>`).join('');
+$('#b-addp').disabled = names.length >= 8;
+}
+plist.oninput = e => { const m = e.target.id.match(/pn-(\d+)/); if(m) names[+m[1]] = e.target.value; };
+plist.onclick = e => { const b = e.target.closest('.x'); if(b){ names.splice(+b.dataset.i, 1); renderPlayers(); } };
+$('#b-addp').onclick = () => { if(names.length < 8){ names.push('플레이어 ' + (names.length + 1)); renderPlayers(); plist.querySelector(`#pn-${names.length-1}`).select(); } };
+$('#seg-rounds').onclick = e => { const b = e.target.closest('button'); if(!b) return; rounds = +b.dataset.v; [...$('#seg-rounds').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
+$('#stake').value = store.get('stake', '');
+renderPlayers();
+let G = null;
+const pstage = makeStage($('#party-stage'), {
+emptyText: '<strong>한 방 승부</strong>원본은 몇 번이든 들을 수 있지만<br>녹음은 한 번뿐이에요.',
+onResult(res){
+const p = G.players[G.turn]; p.scores.push(res.score); p.total += res.score;
+pstage.setRecDisabled(true);
+renderBoard();
+},
+extraButtons(box){
+const last = G.turn === G.players.length - 1;
+box.innerHTML = `<button class="btn yellow">${last ? '라운드 결과 보기' : esc(G.players[G.turn + 1].name) + ' 차례로'}</button>`;
+box.children[0].onclick = nextTurn;
+}
+});
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function startGame(){
+const ps = names.map((n, i) => (n || '').trim() || ('플레이어 ' + (i+1)));
+names = ps; store.set('players', ps); store.set('stake', $('#stake').value.trim());
+G = { players: ps.map(name => ({ name, total:0, scores:[] })), rounds, round:0, turn:0, stake:$('#stake').value.trim(),
+seq: shuffle([...M.SOUNDS]).slice(0, rounds) };
+$('#p-setup').hidden = true; $('#p-final').hidden = true; $('#p-round').hidden = true; $('#p-game').hidden = false;
+beginTurn();
+}
+function beginTurn(){
+const snd = G.seq[G.round];
+$('#g-round').innerHTML = `라운드 ${G.round + 1} <em>/ ${G.rounds}</em>`;
+pstage.setSound(snd, G.players[G.turn].name);
+pstage.setRecDisabled(false);
+renderBoard();
+}
+function renderBoard(){
+$('#g-board').innerHTML = G.players.map((p, i) => `<span class="chip ${i === G.turn ? 'now' : ''}">${esc(p.name)} <b>${p.total}</b></span>`).join('');
+}
+function nextTurn(){
+if(G.turn < G.players.length - 1){ G.turn++; beginTurn(); return; }
+const snd = G.seq[G.round];
+const ranked = G.players.map(p => ({ p, s: p.scores[G.round] })).sort((a, b) => b.s - a.s);
+$('#r-title').innerHTML = `라운드 ${G.round + 1} "${esc(snd.word)}" 승자는 <b>${esc(ranked[0].p.name)}</b>`;
+$('#r-rank').innerHTML = ranked.map((r, i) => `<div class="rk"><span class="p">${i+1}</span><span class="nmv">${esc(r.p.name)}<small>${esc(grade(r.s)[0])} · 누적 ${r.p.total}점</small></span><span class="sc">${r.s}점</span></div>`).join('');
+const last = G.round === G.rounds - 1;
+$('#b-next-round').textContent = last ? '최종 결과 보기' : `라운드 ${G.round + 2}로`;
+$('#p-game').hidden = true; $('#p-round').hidden = false;
+window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('#b-next-round').onclick = () => {
+if(G.round === G.rounds - 1) return showFinal();
+G.round++; G.turn = 0; $('#p-round').hidden = true; $('#p-game').hidden = false; beginTurn();
+};
+function finalRanking(){ return [...G.players].sort((a, b) => b.total - a.total); }
+function showFinal(){
+const r = finalRanking(), top = r[0], bottom = r[r.length - 1];
+const tie = r.filter(p => p.total === top.total).length > 1;
+$('#f-title').innerHTML = tie ? `공동 1등: <b>${r.filter(p => p.total === top.total).map(p => esc(p.name)).join(', ')}</b>` : `우승은 <b>${esc(top.name)}</b>!`;
+$('#f-stake').innerHTML = G.stake ? `꼴찌 <b>${esc(bottom.name)}</b> 님, 약속 지키셔야죠: ${esc(G.stake)}` : `꼴찌는 <b>${esc(bottom.name)}</b> 님이에요.`;
+$('#f-rank').innerHTML = r.map((p, i) => `<div class="rk"><span class="p">${i+1}</span><span class="nmv">${esc(p.name)}<small>평균 ${Math.round(p.total / G.rounds)}점 · ${p.scores.join(' / ')}</small></span><span class="sc">${p.total}점</span></div>`).join('');
+$('#p-round').hidden = true; $('#p-game').hidden = true; $('#p-final').hidden = false;
+fanfare(95);
+}
+$('#b-start').onclick = startGame;
+$('#b-again').onclick = startGame;
+$('#b-reset').onclick = () => { $('#p-final').hidden = true; $('#p-setup').hidden = false; renderPlayers(); };
+$('#b-quit').onclick = () => { if(pstage.st.busy) return; $('#p-game').hidden = true; $('#p-setup').hidden = false; renderPlayers(); };
+$('#b-copy-final').onclick = () => {
+const r = finalRanking();
+copy(`[똑같쥬?] 성대모사 내기 결과 (${G.rounds}판)\n` + r.map((p, i) => `${i+1}위 ${p.name} ${p.total}점`).join('\n') + (G.stake ? `\n벌칙: ${r[r.length-1].name} → ${G.stake}` : '') + `\n${location.href.split('#')[0]}#party`);
+};
+window.__app = { solo, pstage, get G(){ return G; } };
+})();
+</script>
+</body>
+</html>
