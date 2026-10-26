@@ -172,7 +172,7 @@ footer{margin-top:36px;color:var(--muted);font-size:12.5px;display:grid;gap:4px}
 <div class="seg" id="seg-rounds">
 <button aria-pressed="false" data-v="3">3판</button>
 <button aria-pressed="true" data-v="5">5판</button>
-<button aria-pressed="false" data-v="7">7판</button>
+<button aria-pressed="false" data-v="10">10판</button>
 </div>
 </div>
 <div>
@@ -872,7 +872,7 @@ selectSolo(soloSel);
 let onlineLoaded = false;
 function showTab(t){
 for(const k of ['solo','party','online']){ $('#tab-'+k).setAttribute('aria-selected', t === k); $('#v-'+k).hidden = t !== k; }
-if(t === 'online' && !onlineLoaded){ onlineLoaded = true; const s = document.createElement('script'); s.src = 'online.js?v=1'; s.onerror = () => { onlineLoaded = false; $('#online-root').innerHTML = '<div class="panel">온라인 기능을 불러오지 못했어요. 새로고침해 주세요.</div>'; }; document.body.appendChild(s); }
+if(t === 'online' && !onlineLoaded){ onlineLoaded = true; const s = document.createElement('script'); s.src = 'online.js?v=2'; s.onerror = () => { onlineLoaded = false; $('#online-root').innerHTML = '<div class="panel">온라인 기능을 불러오지 못했어요. 새로고침해 주세요.</div>'; }; document.body.appendChild(s); }
 }
 $('#tab-solo').onclick = () => showTab('solo');
 $('#tab-party').onclick = () => showTab('party');
