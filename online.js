@@ -81,7 +81,7 @@ root.innerHTML = `
 <div>
 <label class="l" for="o-name">내 닉네임</label>
 <input type="text" id="o-name" maxlength="12" placeholder="예: 성대장인">
-<p class="note" style="margin-top:12px">친구들이 각자 자기 폰으로 같은 방에 들어와요. 같은 소리를 듣고 한 번씩 따라하면, 일치율 높은 순서대로 순위가 나와요.</p>
+<p class="note" style="margin-top:12px">친구들이 각자 자기 폰으로 같은 방에 들어와요. 라운드마다 소리 하나가 정해지고, 한 명씩 차례대로 따라해요. 라운드마다 순위가 나오고, 누적 점수가 가장 높은 사람이 우승이에요.</p>
 </div>
 <div style="display:grid;gap:10px;align-content:start">
 <button class="btn yellow" id="o-create">방 만들기</button>
@@ -104,7 +104,7 @@ root.innerHTML = `
 <div class="o-plist" id="o-plist"></div>
 <div id="o-hostctl" hidden>
 <label class="l">라운드 수</label>
-<div class="seg" id="o-rounds"><button aria-pressed="true" data-v="3">3판</button><button aria-pressed="false" data-v="5">5판</button><button aria-pressed="false" data-v="7">7판</button></div>
+<div class="seg" id="o-rounds"><button aria-pressed="true" data-v="3">3판</button><button aria-pressed="false" data-v="5">5판</button><button aria-pressed="false" data-v="10">10판</button></div>
 <div class="row" style="margin-top:14px"><button class="btn yellow" id="o-start">게임 시작</button></div>
 </div>
 <div class="o-wait" id="o-lwait">방장이 시작하기를 기다리는 중…</div>
@@ -115,7 +115,7 @@ root.innerHTML = `
 <div class="ghead"><div class="r" id="o-ground"></div><button class="btn ghost" id="o-leave2">나가기</button></div>
 <div class="board" id="o-board"></div>
 <div id="o-stage"></div>
-<div class="row" style="margin-top:12px"><span class="o-wait" id="o-gwait"></span><button class="btn yellow" id="o-reveal" hidden>결과 공개</button></div>
+<div class="row" style="margin-top:12px"><span class="o-wait" id="o-gwait"></span><button class="btn" id="o-reveal" hidden>이 사람 건너뛰기</button></div>
 </div>
 <div id="o-round" class="panel" hidden>
 <h2 class="big" id="o-rtitle"></h2>
@@ -130,7 +130,7 @@ root.innerHTML = `
 <div class="row"><button class="btn yellow" id="o-again" hidden>같은 방에서 한 판 더</button><button class="btn" id="o-fcopy">결과 복사</button><button class="btn ghost" id="o-leave3">나가기</button></div>
 </div>`;
 /* ---------- 상태 ---------- */
-let hostGoneT = null, net = null, code = null, isHost = false, peers = [], S = null, rounds = 3, hostSeen = false, lastStage = null;
+let lastTurn = null, hostGoneT = null, net = null, code = null, isHost = false, peers = [], S = null, rounds = 3, hostSeen = false, lastStage = null;
 const views = ['entry', 'lobby', 'game', 'round', 'final'];
 function show(v) { views.forEach(x => { $('#o-' + x).hidden = x !== v; }); }
 const err = t => { $('#o-err').textContent = t || ''; };
@@ -142,7 +142,7 @@ const n = $('#o-name').value.trim();
 if (!n) { err('닉네임을 먼저 적어주세요'); $('#o-name').focus(); return null; }
 me.name = n; store.set('oname', n); return n;
 }
-function newState() { return { v: 0, host: me.id, phase: 'lobby', rounds, seq: [], round: 0, names: {}, scores: {} }; }
+function newState() { return { v: 0, host: me.id, phase: 'lobby', rounds, seq: [], round: 0, order: [], turn: 0, names: {}, scores: {} }; }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 async function enter(c, host) {
 if (!myName()) return;
@@ -179,7 +179,7 @@ if (isHost) {
 let ch = false;
 for (const p of list) if (S.names[p.id] !== p.name) { S.names[p.id] = p.name; ch = true; }
 if (ch) broadcast(); else net && net.send({ t: 'state', s: S });
-maybeAutoReveal();
+checkTurnGone();
 }
 render();
 }
@@ -192,18 +192,32 @@ if (!isHost) return;
 if (m.t === 'hello') { S.names[m.id] = String(m.name || '').slice(0, 12); broadcast(); }
 if (m.t === 'score' && S.phase === 'play' && m.round === S.round) {
 const arr = S.scores[m.id] || (S.scores[m.id] = []);
-if (arr[m.round] == null) { arr[m.round] = Math.max(0, Math.min(100, Math.round(+m.score || 0))); S.names[m.id] = String(m.name || S.names[m.id] || '').slice(0, 12); broadcast(); maybeAutoReveal(); }
+if (m.id === S.order[S.turn] && arr[m.round] == null) { arr[m.round] = Math.max(0, Math.min(100, Math.round(+m.score || 0))); S.names[m.id] = String(m.name || S.names[m.id] || '').slice(0, 12); advance(); }
 }
 }
 const online = () => peers.map(p => p.id);
 const scoreOf = (id, r) => (S.scores[id] || [])[r];
-function maybeAutoReveal() {
+const curId = () => S && S.phase === 'play' ? S.order[S.turn] : null;
+function advance(skipCurrent) {
 if (!isHost || S.phase !== 'play') return;
-const ids = online(); if (!ids.length) return;
-if (ids.every(id => scoreOf(id, S.round) != null)) { S.phase = 'reveal'; broadcast(); }
+if (skipCurrent !== false) S.turn++;
+while (S.turn < S.order.length && !online().includes(S.order[S.turn])) S.turn++;
+if (S.turn >= S.order.length) S.phase = 'reveal';
+broadcast();
+}
+let goneT = null;
+function checkTurnGone() {
+if (!isHost || !S || S.phase !== 'play') return;
+clearTimeout(goneT);
+const c = curId();
+if (c && !online().includes(c)) goneT = setTimeout(() => { if (S && S.phase === 'play' && curId() === c && !online().includes(c)) advance(); }, 5000);
+}
+function roundOrder() {
+const on = online(), keep = S.order.filter(id => on.includes(id));
+return keep.concat(on.filter(id => !keep.includes(id)));
 }
 function players() {
-const ids = new Set([...online(), ...Object.keys(S.scores)]);
+const ids = new Set([...online(), ...Object.keys(S.scores), ...(S.order || [])]);
 return [...ids].map(id => ({ id, name: S.names[id] || (peers.find(p => p.id === id) || {}).name || '???', on: online().includes(id),
 s: S.scores[id] || [], total: (S.scores[id] || []).reduce((a, b) => a + (b || 0), 0) }));
 }
@@ -249,11 +263,25 @@ show('game');
 const snd = M.SOUNDS.find(s => s.id === S.seq[S.round]);
 $('#o-ground').innerHTML = `라운드 ${S.round + 1} <em>/ ${S.rounds}</em>`;
 const key = S.round + ':' + snd.id;
-if (lastStage !== key) { lastStage = key; stage.setSound(snd); stage.setRecDisabled(myDone[S.round] != null || scoreOf(me.id, S.round) != null); }
-const ids = online(), done = ids.filter(id => scoreOf(id, S.round) != null).length;
-$('#o-board').innerHTML = ps.filter(p => p.on).map(p => `<span class="chip ${p.id === me.id ? 'now' : ''}">${esc(p.name)} <b>${p.total}</b> ${scoreOf(p.id, S.round) != null ? '<span class="o-badge done">완료</span>' : '<span class="o-badge wait">녹음 중</span>'}</span>`).join('');
-$('#o-gwait').textContent = `${done} / ${ids.length}명 완료` + (myDone[S.round] != null || scoreOf(me.id, S.round) != null ? ' · 다른 사람을 기다리는 중…' : '');
-$('#o-reveal').hidden = !isHost || done === 0;
+const cur = curId(), curName = S.names[cur] || '???', mine = cur === me.id;
+const iDid = myDone[S.round] != null || scoreOf(me.id, S.round) != null;
+if (lastStage !== key) { lastStage = key; lastTurn = null; stage.setSound(snd); }
+const tk = key + ':' + S.turn;
+if (lastTurn !== tk && stage.st.busy) setTimeout(render, 250);
+if (lastTurn !== tk && !stage.st.busy) {
+lastTurn = tk;
+const t = stage.q('.turn'); t.hidden = false; t.textContent = mine ? '내 차례!' : curName + ' 차례';
+if (mine) { stage.setStatus('내 차례예요! 원본을 듣고 따라하기를 누르세요'); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
+else stage.setStatus(curName + '님이 따라하는 중…');
+if (!iDid) stage.showEmpty(mine ? '<strong>내 차례!</strong>원본을 듣고 따라하기를 눌러요.<br>녹음은 한 번뿐이에요.' : `<strong>${esc(curName)}님 차례</strong>원본은 미리 들어둘 수 있어요.<br>내 차례가 오면 따라하기가 켜져요.`);
+}
+stage.setRecDisabled(!mine || iDid);
+const ord = S.order.map(id => ps.find(p => p.id === id) || { id, name: S.names[id] || '???', total: 0, s: [], on: false });
+$('#o-board').innerHTML = ord.map((p, i) => { const sc = scoreOf(p.id, S.round);
+return `<span class="chip ${p.id === cur ? 'now' : ''}">${i + 1}. ${esc(p.name)}${p.id === me.id ? '(나)' : ''} <b>${p.total}</b> ${sc != null ? `<span class="o-badge done">${sc}점</span>` : p.id === cur ? '<span class="o-badge">지금 차례</span>' : !p.on ? '<span class="o-badge wait">나감</span>' : '<span class="o-badge wait">대기</span>'}</span>`; }).join('');
+const done = S.order.filter(id => scoreOf(id, S.round) != null).length;
+$('#o-gwait').textContent = `${done} / ${S.order.length}명 완료 · 지금 ${curName}${mine ? '(나)' : ''} 차례`;
+$('#o-reveal').hidden = !isHost || mine;
 return;
 }
 if (S.phase === 'reveal') {
@@ -282,14 +310,14 @@ $('#o-create').onclick = () => enter(String(Math.floor(1000 + Math.random() * 90
 $('#o-join').onclick = () => { const c = $('#o-codein').value.replace(/\D/g, ''); if (c.length !== 4) { err('4자리 방 코드를 넣어주세요'); return; } enter(c, false); };
 $('#o-codein').onkeydown = e => { if (e.key === 'Enter') $('#o-join').click(); };
 $('#o-rounds').onclick = e => { const b = e.target.closest('button'); if (!b) return; rounds = +b.dataset.v; [...$('#o-rounds').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
-$('#o-start').onclick = () => { if (!isHost) return; S.rounds = rounds; S.seq = shuffle(M.SOUNDS.map(s => s.id)).slice(0, rounds); S.round = 0; S.scores = {}; S.phase = 'play'; broadcast(); };
-$('#o-reveal').onclick = () => { if (isHost && S.phase === 'play') { S.phase = 'reveal'; broadcast(); } };
-$('#o-next').onclick = () => { if (!isHost) return; if (S.round >= S.rounds - 1) S.phase = 'final'; else { S.round++; S.phase = 'play'; } broadcast(); };
+$('#o-start').onclick = () => { if (!isHost) return; S.rounds = rounds; S.seq = shuffle(M.SOUNDS.map(s => s.id)).slice(0, rounds); S.round = 0; S.scores = {}; S.order = [S.host].concat(online().filter(id => id !== S.host)); S.turn = 0; S.phase = 'play'; advance(false); };
+$('#o-reveal').onclick = () => { if (isHost && S.phase === 'play') advance(); };
+$('#o-next').onclick = () => { if (!isHost) return; if (S.round >= S.rounds - 1) { S.phase = 'final'; broadcast(); } else { S.round++; S.order = roundOrder(); S.turn = 0; S.phase = 'play'; advance(false); } };
 $('#o-again').onclick = () => { if (!isHost) return; S.phase = 'lobby'; S.scores = {}; S.round = 0; broadcast(); };
 $('#o-invite').onclick = () => A.copy(`[똑같쥬?] 성대모사 대결 방에 들어와! 방 코드 ${code}\n${location.origin + location.pathname}?room=${code}`);
 $('#o-fcopy').onclick = () => { const list = players().sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)); A.copy(`[똑같쥬?] 온라인 성대모사 대결 (${S.rounds}판)\n` + list.map((p, i) => `${i + 1}위 ${p.name} ${p.total}점`).join('\n') + `\n${location.origin + location.pathname}`); };
 ['#o-leave1', '#o-leave2', '#o-leave3'].forEach(id => $(id).onclick = () => { if (stage.st.busy) return; leave(); });
 addEventListener('beforeunload', () => { if (net) net.leave(); });
 show('entry');
-window.__online = { get S() { return S; }, get peers() { return peers; }, get isHost() { return isHost; } };
+window.__online = { get cur() { return curId(); }, get S() { return S; }, get peers() { return peers; }, get isHost() { return isHost; } };
 })();
