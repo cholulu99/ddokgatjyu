@@ -124,6 +124,9 @@ input[type=text],select{width:100%;background:#0b0d2c;color:var(--fg);border:1px
 .stake{margin-top:8px;font-size:17px}
 .stake b{color:var(--pink)}
 footer{margin-top:36px;color:var(--muted);font-size:12.5px;display:grid;gap:4px}
+footer a{color:var(--cyan)}
+footer summary{cursor:pointer;margin-top:4px}
+#credits{display:grid;gap:2px;margin-top:6px}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--yellow);color:#1b1640;font-weight:700;padding:10px 18px;border-radius:999px;z-index:9}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -210,7 +213,8 @@ footer{margin-top:36px;color:var(--muted);font-size:12.5px;display:grid;gap:4px}
 </div>
 </section>
 <footer>
-<span>모든 소리는 이 페이지가 브라우저에서 직접 합성한 오리지널 효과음이에요. 노래·영화 음원은 쓰지 않아요.</span>
+<span>모든 소리는 <a href="https://freesound.org" target="_blank" rel="noopener">Freesound</a>에 CC0(저작권 포기)로 공개된 효과음이에요. 노래·영화·방송 음원은 쓰지 않아요.</span>
+<details><summary>소리 출처 보기</summary><div id="credits"></div></details>
 <span>녹음은 이 기기 안에서만 분석되고 어디에도 저장되거나 전송되지 않아요.</span>
 </footer>
 </div>
@@ -294,124 +298,75 @@ curve(g.gain, o.amp || env(o.dur, 0.005, o.dur * 0.7), t0, P, x => x * (o.vol ||
 s.connect(f).connect(g).connect(out); s.start(t0); s.stop(t0 + d);
 }
 /* ---------------- 사운드 목록 ---------------- */
+const SRC = 'https://cdn.freesound.org/previews/';
+const S = (id, name, word, lv, dur, src, hint, title, by) => ({ id, name, word, lv, dur, src, hint, credit: { title, by, url: 'https://freesound.org/s/' + src.split('/')[1].split('_')[0] + '/' } });
 const SOUNDS = [
-{ id: 'cat', name: '고양이', word: '야~옹', lv: 1, dur: 3.2, hint: '"냐아~옹" 하고 끝을 내려요',
-make(ctx, out, P) {
-for (const t0 of [0.2, 1.85]) voice(ctx, out, { P, t0, dur: 1.1, vib: [5, 8], q: 7,
-pitch: [[0, 520], [0.25, 720], [0.6, 680], [1.1, 430]],
-formants: [[0, [350, 1900, 2700]], [0.15, [850, 1300, 2600]], [0.55, [600, 1000, 2500]], [1.0, [350, 900, 2400]]],
-amp: [[0, 0], [0.08, 0.8], [0.3, 1], [0.85, 0.8], [1.1, 0]] });
-} },
-{ id: 'siren', name: '구급차', word: '삐뽀삐뽀', lv: 1, dur: 4.1, hint: '높은음 낮은음을 번갈아',
-make(ctx, out, P) {
-const pts = []; for (let i = 0; i < 8; i++) pts.push([i * 0.48, i % 2 ? 720 : 960]);
-voice(ctx, out, { P, t0: 0.2, dur: 3.84, type: 'triangle', step: true, pitch: pts, amp: env(3.84, 0.03, 0.06, 0.9) });
-} },
-{ id: 'cuckoo', name: '뻐꾸기', word: '뻐꾹 뻐꾹', lv: 1, dur: 3.3, hint: '두 음, 위에서 아래로',
-make(ctx, out, P) {
-for (const t0 of [0.2, 1.3, 2.4]) {
-voice(ctx, out, { P, t0, dur: 0.22, type: 'triangle', pitch: [[0, 690], [0.22, 680]], amp: env(0.22, 0.015, 0.1) });
-voice(ctx, out, { P, t0: t0 + 0.3, dur: 0.38, type: 'triangle', pitch: [[0, 565], [0.38, 550]], amp: env(0.38, 0.015, 0.22) });
-}
-} },
-{ id: 'dog', name: '강아지', word: '멍! 멍멍!', lv: 1, dur: 3.0, hint: '짧고 굵게 끊어서',
-make(ctx, out, P) {
-for (const t0 of [0.25, 1.2, 1.5, 2.45]) {
-voice(ctx, out, { P, t0, dur: 0.2, q: 4, pitch: [[0, 420], [0.05, 480], [0.2, 300]],
-formants: [[0, [700, 1200, 2500]], [0.2, [500, 1000, 2400]]], amp: [[0, 0], [0.02, 1], [0.1, 0.7], [0.2, 0]] });
-noise(ctx, out, { P, t0, dur: 0.07, freq: 1300, q: 1.5, vol: 0.35 });
-}
-} },
-{ id: 'owl', name: '부엉이', word: '부-엉 부-엉', lv: 1, dur: 3.1, hint: '낮고 둥글게',
-make(ctx, out, P) {
-for (const t0 of [0.2, 1.7]) {
-voice(ctx, out, { P, t0, dur: 0.28, type: 'triangle', q: 5, pitch: [[0, 380], [0.28, 390]],
-formants: [[0, [300, 700, 2300]]], amp: env(0.28, 0.06, 0.08) });
-voice(ctx, out, { P, t0: t0 + 0.36, dur: 0.75, type: 'triangle', q: 5, pitch: [[0, 430], [0.2, 440], [0.75, 340]],
-formants: [[0, [550, 900, 2400]], [0.75, [450, 850, 2400]]], amp: env(0.75, 0.06, 0.3) });
-}
-} },
-{ id: 'sheep', name: '양', word: '메에에에~', lv: 2, dur: 2.8, hint: '목을 떨면서 길게',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.2, dur: 2.3, vib: [7, 35], trem: [7, 0.45], q: 6,
-pitch: [[0, 380], [0.2, 440], [2.0, 400], [2.3, 330]],
-formants: [[0, [300, 1000, 2400]], [0.15, [500, 1800, 2500]]], amp: [[0, 0], [0.12, 1], [1.9, 0.9], [2.3, 0]] });
-} },
-{ id: 'wolf', name: '늑대', word: '아우우~', lv: 2, dur: 3.8, hint: '쭉 올렸다가 천천히 내려요',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.2, dur: 3.4, vib: [5, 10], q: 6,
-pitch: [[0, 280], [0.6, 520], [1.6, 560], [2.8, 420], [3.4, 300]],
-formants: [[0, [800, 1250, 2600]], [1.2, [700, 1100, 2500]], [2.0, [350, 750, 2300]]],
-amp: [[0, 0], [0.3, 0.9], [2.6, 1], [3.4, 0]] });
-} },
-{ id: 'ufo', name: 'UFO', word: '우우웅~', lv: 2, dur: 3.6, hint: '흔들리면서 점점 높게',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.2, dur: 3.2, type: 'sine', vib: [6, 45], pitch: [[0, 280], [3.2, 520]],
-amp: [[0, 0], [0.3, 1], [2.9, 1], [3.2, 0]] });
-} },
-{ id: 'bomb', name: '폭탄 낙하', word: '휘이이~ 쾅!', lv: 2, dur: 4.0, hint: '휘파람이 쭉 떨어지다가 쾅',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.2, dur: 2.5, type: 'sine', pitch: [[0, 1500], [2.5, 450]], amp: [[0, 0], [0.2, 0.6], [2.45, 0.9], [2.5, 0]] });
-noise(ctx, out, { P, t0: 2.75, dur: 1.0, ft: 'lowpass', freq: 400, q: 0.7, vol: 1.6, amp: [[0, 0], [0.01, 1], [0.3, 0.5], [1.0, 0]] });
-} },
-{ id: 'laser', name: '레이저 총', word: '퓽 퓽 퓽', lv: 2, dur: 3.1, hint: '높은 데서 뚝 떨어지게',
-make(ctx, out, P) {
-for (let i = 0; i < 5; i++) voice(ctx, out, { P, t0: 0.2 + i * 0.55, dur: 0.3, type: 'triangle',
-pitch: [[0, 1400], [0.3, 280]], amp: [[0, 0], [0.01, 1], [0.3, 0]] });
-} },
-{ id: 'mosquito', name: '모기', word: '애애앵~', lv: 3, dur: 3.4, hint: '코로 가늘게, 커졌다 작아졌다',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.15, dur: 3.1, vib: [9, 12], q: 8,
-pitch: [[0, 560], [1, 600], [2, 540], [3.1, 590]], formants: [[0, [700, 1700, 2600]]],
-amp: [[0, 0], [0.6, 0.5], [1.4, 1], [2.2, 0.4], [2.9, 0.9], [3.1, 0]] });
-} },
-{ id: 'robot', name: '로봇', word: '삐-빅 삐빅', lv: 2, dur: 3.0, hint: '기계처럼 딱딱 끊어서',
-make(ctx, out, P) {
-const ev = [[0.2, 900, 0.35], [0.62, 620, 0.14], [1.2, 900, 0.12], [1.37, 620, 0.12], [2.0, 900, 0.35], [2.42, 620, 0.14]];
-for (const [t0, f, d] of ev) voice(ctx, out, { P, t0, dur: d, type: 'square', lp: 2500, vol: 0.5, pitch: [[0, f], [d, f]], amp: env(d, 0.01, 0.02) });
-} },
-{ id: 'bell', name: '초인종', word: '딩-동 딩-동', lv: 1, dur: 4.0, hint: '"딩"은 높게, "동"은 낮게',
-make(ctx, out, P) {
-for (const t0 of [0.2, 1.95]) {
-voice(ctx, out, { P, t0, dur: 1.0, type: 'sine', pitch: [[0, 659], [1, 659]], amp: [[0, 0], [0.01, 1], [0.5, 0.35], [1.0, 0]] });
-voice(ctx, out, { P, t0: t0 + 0.6, dur: 1.3, type: 'sine', pitch: [[0, 523], [1.3, 523]], amp: [[0, 0], [0.01, 1], [0.6, 0.35], [1.3, 0]] });
-}
-} },
-{ id: 'rooster', name: '닭', word: '꼬끼오~', lv: 3, dur: 3.0, hint: '"꼬끼" 짧게, "오~"는 높게 길게',
-make(ctx, out, P) {
-noise(ctx, out, { P, t0: 0.2, dur: 0.04, freq: 2500, vol: 0.3 });
-voice(ctx, out, { P, t0: 0.22, dur: 0.18, q: 6, pitch: [[0, 480], [0.18, 500]], formants: [[0, [450, 850, 2500]]], amp: env(0.18, 0.02, 0.05) });
-noise(ctx, out, { P, t0: 0.46, dur: 0.04, freq: 3000, vol: 0.3 });
-voice(ctx, out, { P, t0: 0.48, dur: 0.2, q: 6, pitch: [[0, 620], [0.2, 650]], formants: [[0, [300, 2200, 3000]]], amp: env(0.2, 0.02, 0.05) });
-voice(ctx, out, { P, t0: 0.72, dur: 1.9, q: 6, vib: [6, 12], pitch: [[0, 700], [0.3, 770], [1.3, 720], [1.9, 470]],
-formants: [[0, [450, 850, 2500]], [1.4, [400, 800, 2400]], [1.9, [330, 750, 2300]]], amp: [[0, 0], [0.06, 1], [1.4, 0.9], [1.9, 0]] });
-} },
-{ id: 'duck', name: '오리', word: '꽥꽥 꽥꽥', lv: 2, dur: 3.0, hint: '코맹맹이 소리로 짧게',
-make(ctx, out, P) {
-for (const t0 of [0.2, 0.55, 1.4, 1.75, 2.55]) {
-voice(ctx, out, { P, t0, dur: 0.22, q: 10, pitch: [[0, 310], [0.22, 270]], formants: [[0, [900, 1600, 2600]]],
-amp: [[0, 0], [0.02, 1], [0.16, 0.6], [0.22, 0]] });
-noise(ctx, out, { P, t0, dur: 0.05, freq: 2000, vol: 0.25 });
-}
-} },
-{ id: 'cow', name: '소', word: '음메~', lv: 2, dur: 3.3, hint: '배에 힘주고 낮게',
-make(ctx, out, P) {
-voice(ctx, out, { P, t0: 0.2, dur: 3.0, q: 5,
-pitch: [[0, 130], [0.4, 150], [1.5, 175], [2.6, 140], [3.0, 115]],
-formants: [[0, [250, 1000, 2300]], [0.5, [250, 1000, 2300]], [0.8, [500, 1700, 2500]]],
-amp: [[0, 0], [0.3, 0.6], [0.6, 0.5], [0.9, 1], [2.6, 0.9], [3.0, 0]] });
-} }
+S('goat', '염소', '메에에엑!', 2, 2.4, '737/737271_13999124', '목을 쥐어짜듯 높게 비명!', 'Alien goat screaming sound effect', 'Mastersoundboy2005'),
+S('evillaugh', '악당 웃음', '크흐흐하하', 2, 2.5, '478/478934_4638708', '낮고 음흉하게 웃어요', 'evil laugh.wav', 'kintana24'),
+S('babygiggle', '아기 웃음', '꺄르르르', 2, 2.1, '458/458645_6996390', '높고 짧게 끊어서', 'babygiggle.mp3', 'jamesmbock'),
+S('burp', '트림', '꺼어억', 1, 1.3, '12/12730_2211', '배에서 끌어올리듯', 'Burp.wav', 'Pingel'),
+S('sealion', '물개', '어우! 어우!', 2, 3.6, '680/680735_14831112', '굵고 거칠게 짖듯이', 'Sea Lion 3.wav', 'nifvimp'),
+S('rooster', '수탉', '꼬끼오~', 2, 1.9, '435/435508_1196020', '끝을 길게 끌어올려요', 'Rooster Crow 1', 'BenjaminNelan'),
+S('ducks', '오리 떼', '꽥꽥꽥꽥', 1, 3.3, '607/607226_887696', '코맹맹이로 빠르게', 'Ducks', 'D4XX'),
+S('sheep', '양', '메에에~', 1, 1.6, '172/172712_3223402', '목을 떨면서 길게', 'sheep.wav', 'Gitanki'),
+S('cow', '소', '음메에~', 1, 2.9, '546/546479_11588763', '배에 힘주고 낮게', 'Cow Moo 2', 'invertedturtle'),
+S('horse', '말', '히히힝', 2, 1.5, '269/269571_4564240', '높게 떨면서 내려와요', 'horse neigh shortened.wav', 'shadoWisp'),
+S('donkey', '당나귀', '히-호 히-호', 3, 1.5, '560/560692_10936067', '들이마시고 내쉬며 번갈아', 'Donkey Bray', 'StarNinjas37'),
+S('pig', '돼지 비명', '꾸에에엑!', 2, 2.0, '233/233151_4056007', '날카롭게 꽥!', 'Pig - Scream 5 - 96kHz.wav', 'JarredGibb'),
+S('yawn', '하품', '하아아암~', 1, 3.4, '240/240139_729251', '진짜 졸린 것처럼', 'Yawn (Male)', 'DrFortyseven'),
+S('woah', '아이들 탄성', '우와아아~', 1, 4.2, '397/397317_3366726', '다 같이 놀란 듯이', 'kids_WOAH.wav', 'DesignDean'),
+S('wow', '와우', '와우!', 1, 1.6, '398/398933_909016', '굵은 목소리로 감탄', 'WOW male voice', 'ahab2000'),
+S('babycry', '아기 울음', '응애 응애', 2, 3.5, '240/240372_3763935', '서럽게 떨면서', 'baby cry.mp3', 'mariiao2'),
+S('uhoh', '어이쿠', '어-오', 1, 2.1, '504/504654_3923096', '높게 갔다가 낮게', 'Uh Oh.mp3', 'Ant103010'),
+S('huhhaa', '헉-하!', '헉? 하아!', 2, 1.5, '213/213232_1038806', '놀란 듯 들이켰다가 내쉬기', 'Huh-haaa! (dry)', 'unfa'),
+S('boing', '띠용', '띠요오옹', 2, 1.2, '161/161122_2750714', '스프링처럼 떨면서', 'Cartoon Boing.wav', 'reelworldstudio'),
+S('chickenimit', '닭 흉내', '꼬꼬꼬꼭', 2, 2.5, '170/170808_377731', '사람이 낸 닭 흉내예요', 'Chicken imitation', 'esperar'),
+S('witch', '마녀 웃음', '이히히히히', 3, 4.8, '237/237984_4082826', '높고 째지게', 'witch (laughing).wav', 'ZyryTSounds')
 ];
+const MAXLEN = 4.5;
+const rawCache = {};
+async function decodeSrc(snd) {
+if (!rawCache[snd.id]) rawCache[snd.id] = (async () => {
+const p = snd.src + '-hq.mp3';
+let ab = null;
+for (const u of ['/api/snd?p=' + encodeURIComponent(p), SRC + p]) {
+try { const r = await fetch(u); if (r.ok) { ab = await r.arrayBuffer(); if (ab.byteLength > 1000) break; } } catch (e) {}
+ab = null;
+}
+if (!ab) throw new Error('소리를 불러오지 못했어요');
+const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+const dc = new AC(1, 1, 44100);
+return await new Promise((res, rej) => { const pr = dc.decodeAudioData(ab, res, rej); if (pr && pr.then) pr.then(res, rej); });
+})();
+try { return await rawCache[snd.id]; } catch (e) { delete rawCache[snd.id]; throw e; }
+}
 async function render(snd, sr, opts) {
-const P = mkP(opts);
-const dur = P.t(snd.dur) + 0.2;
-const ctx = new OfflineAudioContext(1, Math.ceil(dur * sr), sr);
-const out = ctx.createGain(); out.connect(ctx.destination);
-snd.make(ctx, out, P);
+opts = opts || {};
+const raw = await decodeSrc(snd);
+const rate = (opts.speed ? 1 / opts.speed : 1) * (opts.pitch || 1);
+const n = raw.numberOfChannels, len = raw.length, mono = new Float32Array(len);
+for (let c = 0; c < n; c++) { const d = raw.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += d[i] / n; }
+let pk = 0; for (let i = 0; i < len; i++) pk = Math.max(pk, Math.abs(mono[i]));
+let a = 0, b = len - 1; const th = pk * 0.05;
+while (a < b && Math.abs(mono[a]) < th) a++;
+while (b > a && Math.abs(mono[b]) < th) b--;
+const pad = Math.floor(raw.sampleRate * 0.04);
+a = Math.max(0, a - pad); b = Math.min(len - 1, b + pad, a + Math.floor(MAXLEN * raw.sampleRate));
+const src = new AudioBuffer({ length: b - a + 1, sampleRate: raw.sampleRate, numberOfChannels: 1 });
+src.getChannelData(0).set(mono.subarray(a, b + 1));
+const lead = 0.15, outLen = Math.ceil(((b - a + 1) / raw.sampleRate / rate + lead * 2) * sr);
+const ctx = new OfflineAudioContext(1, outLen, sr);
+const s = ctx.createBufferSource(); s.buffer = src; s.playbackRate.value = rate;
+const g = ctx.createGain(); s.connect(g).connect(ctx.destination);
+const fade = Math.min(0.03, src.duration / 4);
+g.gain.setValueAtTime(0, lead); g.gain.linearRampToValueAtTime(1, lead + fade);
+g.gain.setValueAtTime(1, lead + src.duration / rate - fade); g.gain.linearRampToValueAtTime(0, lead + src.duration / rate);
+s.start(lead);
 const buf = await ctx.startRendering();
-const d = buf.getChannelData(0);
-let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
-if (pk > 0) for (let i = 0; i < d.length; i++) d[i] = d[i] / pk * 0.8;
+const d = buf.getChannelData(0); let p2 = 0;
+for (let i = 0; i < d.length; i++) p2 = Math.max(p2, Math.abs(d[i]));
+if (p2 > 0) for (let i = 0; i < d.length; i++) d[i] = d[i] / p2 * 0.8;
+if (!opts.speed && !opts.pitch) snd.dur = Math.round(src.duration * 10) / 10;
 return buf;
 }
 async function toAnalysis(buf) {
@@ -615,7 +570,8 @@ const rhythm = 0.55 * clamp((r - 0.05) / 0.8) + 0.45 * clamp(1 - mad * 2.2);
 const ratio = Math.min(R.dur, U.dur) / Math.max(R.dur, U.dur);
 const length = clamp((ratio - 0.4) / 0.5);
 const vf = R.vr > 0.2 ? clamp(U.vr / (R.vr * 0.5)) : 1;
-const raw0 = 0.45 * pitch + 0.15 * timbre + 0.25 * rhythm + 0.15 * length;
+const wv = clamp((R.vr - 0.1) / 0.15);
+const raw0 = wv * (0.45 * pitch + 0.15 * timbre + 0.25 * rhythm + 0.15 * length) + (1 - wv) * (0.5 * rhythm + 0.3 * timbre + 0.2 * length);
 const raw = raw0 * (0.3 + 0.7 * vf);
 const score = Math.round(100 * Math.pow(clamp((raw - 0.22) / 0.72), 0.85));
 return { score, raw, parts: { pitch, timbre, rhythm, length }, dbg: { err: cv ? err / cv : null, vAgree, td, r, mad, ratio } };
@@ -655,7 +611,7 @@ const feat = M.analyze(await M.toAnalysis(buf));
 return { buf, feat };
 })();
 }
-return refCache[snd.id];
+return refCache[snd.id].catch(e => { delete refCache[snd.id]; throw e; });
 }
 async function playRef(snd){
 const ctx = await audio(); const { buf } = await getRef(snd);
@@ -768,11 +724,11 @@ const t = q('.turn'); t.hidden = !turn; if(turn) t.textContent = turn + ' 차례
 q('.bar i').style.width = '0'; q('.time i').style.width = '0';
 setStatus('원본을 듣고 따라해 보세요');
 showEmpty(opts.emptyText);
-getRef(snd);
+getRef(snd).catch(() => {});
 }
 function showEmpty(html){ q('.result').innerHTML = `<div class="empty">${html || '<strong>점수는 여기에</strong>원본 듣기 → 따라하기를 누르면<br>3, 2, 1 후 녹음이 시작돼요.'}</div>`; }
 function lock(on){ st.busy = on; q('.b-listen').disabled = on; q('.b-rec').disabled = on || st.recDisabled; }
-q('.b-listen').onclick = async () => { if(st.busy || !st.snd) return; lock(true); setStatus('재생 중…'); await playRef(st.snd); setStatus('이제 따라해 보세요'); lock(false); };
+q('.b-listen').onclick = async () => { if(st.busy || !st.snd) return; lock(true); setStatus('불러오는 중…'); try{ const pr = playRef(st.snd); setStatus('재생 중…'); await pr; setStatus('이제 따라해 보세요'); }catch(e){ setStatus('소리를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러주세요', true); } lock(false); };
 q('.b-stop').onclick = () => { st.abort.stop = true; };
 q('.b-rec').onclick = async () => {
 if(st.busy || !st.snd) return;
@@ -792,7 +748,7 @@ cnt.hidden = true;
 setStatus('녹음 중… 지금 따라하세요!', true);
 q('.b-stop').hidden = false;
 st.abort = {};
-const secs = st.snd.dur + 1.0;
+const secs = st.snd.dur + 1.5;
 const buf = await record(secs, (pk, p) => { q('.bar i').style.width = Math.min(100, pk*160) + '%'; q('.time i').style.width = Math.min(100, p*100) + '%'; }, st.abort);
 q('.b-stop').hidden = true; q('.bar i').style.width = '0';
 st.rec = trimRec(buf);
@@ -812,7 +768,7 @@ showResult(res);
 const recNow = st.rec; setTimeout(() => { if(!st.busy && st.rec === recNow) { setStatus('내 목소리 재생 중…'); playBuffer(recNow).then(() => { if(st.rec === recNow && !st.busy) setStatus('채점 완료! 내 목소리를 다시 들어볼 수 있어요'); }); } }, 900);
 opts.onResult && opts.onResult(res, st.snd);
 }
-}finally{ q('.b-stop').hidden = true; lock(false); }
+}catch(e){ setStatus('소리를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러주세요', true); }finally{ q('.b-stop').hidden = true; lock(false); }
 };
 function showResult(res){
 const [g, c] = grade(res.score);
@@ -864,7 +820,7 @@ grid.innerHTML = M.SOUNDS.map(s => `<button class="card" data-id="${s.id}" aria-
 <span class="w">${esc(s.word)}</span><span class="m"><span>${esc(s.name)} · ${'●'.repeat(s.lv)}</span><span class="best">${best[s.id] != null ? best[s.id] : ''}</span></span></button>`).join('');
 }
 let soloSel = store.get('sel', 'cat');
-if(!M.SOUNDS.find(s => s.id === soloSel)) soloSel = 'cat';
+if(!M.SOUNDS.find(s => s.id === soloSel)) soloSel = M.SOUNDS[0].id;
 const solo = makeStage($('#solo-stage'), {
 onResult(res, snd){
 if(best[snd.id] == null || res.score > best[snd.id]){ best[snd.id] = res.score; store.set('best', best); if(res.score > 0) toast('최고 기록 갱신!'); }
@@ -889,6 +845,7 @@ $('#solo-stage').scrollIntoView({ behavior:'smooth', block:'start' });
 grid.onclick = e => { const c = e.target.closest('.card'); if(c && !solo.st.busy) { selectSolo(c.dataset.id); $('#solo-stage').scrollIntoView({ behavior:'smooth', block:'start' }); } };
 $('#b-random').onclick = () => { if(!solo.st.busy) pickRandom(); };
 selectSolo(soloSel);
+$('#credits').innerHTML = M.SOUNDS.map(s => `<span>${esc(s.name)}: <a href="${s.credit.url}" target="_blank" rel="noopener">${esc(s.credit.title)}</a> by ${esc(s.credit.by)} (CC0)</span>`).join('');
 /* ---------- 탭 ---------- */
 let onlineLoaded = false;
 function showTab(t){
