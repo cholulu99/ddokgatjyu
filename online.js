@@ -121,7 +121,7 @@ root.innerHTML = `
 <h2 class="big" id="o-rtitle"></h2>
 <div class="rank" id="o-rrank"></div>
 <button class="btn yellow" id="o-next" hidden></button>
-<div class="o-wait" id="o-rwait">방장이 다음으로 넘어가기를 기다리는 중…</div>
+<div class="o-wait" id="o-rwait">잠시 후 다음 라운드가 시작돼요…</div>
 </div>
 <div id="o-final" class="panel" hidden>
 <p class="note" style="margin:0 0 6px">최종 순위</p>
@@ -130,7 +130,7 @@ root.innerHTML = `
 <div class="row"><button class="btn yellow" id="o-again" hidden>같은 방에서 한 판 더</button><button class="btn" id="o-fcopy">결과 복사</button><button class="btn ghost" id="o-leave3">나가기</button></div>
 </div>`;
 /* ---------- 상태 ---------- */
-let lastTurn = null, hostGoneT = null, net = null, code = null, isHost = false, peers = [], S = null, rounds = 3, hostSeen = false, lastStage = null;
+let lastTurn = null, lastFlash = null, lastListen = null, hostGoneT = null, net = null, code = null, isHost = false, peers = [], S = null, rounds = 3, hostSeen = false, lastStage = null, retried = 0;
 const views = ['entry', 'lobby', 'game', 'round', 'final'];
 function show(v) { views.forEach(x => { $('#o-' + x).hidden = x !== v; }); }
 const err = t => { $('#o-err').textContent = t || ''; };
@@ -142,10 +142,12 @@ const n = $('#o-name').value.trim();
 if (!n) { err('닉네임을 먼저 적어주세요'); $('#o-name').focus(); return null; }
 me.name = n; store.set('oname', n); return n;
 }
-function newState() { return { v: 0, host: me.id, phase: 'lobby', rounds, seq: [], round: 0, order: [], turn: 0, names: {}, scores: {} }; }
+function newState() { return { v: 0, host: me.id, phase: 'lobby', rounds, seq: [], round: 0, order: [], turn: 0, flash: null, names: {}, scores: {} }; }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function unlock() { try { A.audio(); } catch (e) {} A.getMic().catch(() => {}); }
 async function enter(c, host) {
 if (!myName()) return;
+unlock();
 err(''); $('#o-create').disabled = $('#o-join').disabled = true;
 try {
 code = c; isHost = host; S = host ? newState() : null; hostSeen = host;
@@ -187,22 +189,48 @@ function onMsg(m) {
 if (!m || typeof m !== 'object') return;
 if (m.t === 'state' && !isHost) {
 if (!S || m.s.v >= S.v || m.s.host !== S.host) { hostSeen = true; S = m.s; render(); }
+return;
 }
+if (m.t === 'prog') { showProg(m); return; }
 if (!isHost) return;
 if (m.t === 'hello') { S.names[m.id] = String(m.name || '').slice(0, 12); broadcast(); }
-if (m.t === 'score' && S.phase === 'play' && m.round === S.round) {
+if (m.t === 'score' && S.phase === 'play' && m.round === S.round && !S.flash) {
 const arr = S.scores[m.id] || (S.scores[m.id] = []);
-if (m.id === S.order[S.turn] && arr[m.round] == null) { arr[m.round] = Math.max(0, Math.min(100, Math.round(+m.score || 0))); S.names[m.id] = String(m.name || S.names[m.id] || '').slice(0, 12); advance(); }
+if (m.id === S.order[S.turn] && arr[m.round] == null) {
+arr[m.round] = Math.max(0, Math.min(100, Math.round(+m.score || 0)));
+S.names[m.id] = String(m.name || S.names[m.id] || '').slice(0, 12);
+S.flash = { id: m.id, score: arr[m.round], turn: S.turn };
+broadcast();
+const key = S.round + ':' + S.turn;
+setTimeout(() => { if (S && S.phase === 'play' && S.round + ':' + S.turn === key && S.flash) { S.flash = null; advance(); } }, 4200);
+}
 }
 }
 const online = () => peers.map(p => p.id);
 const scoreOf = (id, r) => (S.scores[id] || [])[r];
 const curId = () => S && S.phase === 'play' ? S.order[S.turn] : null;
+const turnKey = () => S ? S.round + ':' + S.turn : '';
 function advance(skipCurrent) {
 if (!isHost || S.phase !== 'play') return;
+S.flash = null;
 if (skipCurrent !== false) S.turn++;
 while (S.turn < S.order.length && !online().includes(S.order[S.turn])) S.turn++;
-if (S.turn >= S.order.length) S.phase = 'reveal';
+if (S.turn >= S.order.length) { S.phase = 'reveal'; scheduleNext(); }
+broadcast();
+}
+let nextT = null;
+function scheduleNext() {
+clearTimeout(nextT);
+const key = S.round;
+nextT = setTimeout(() => { if (isHost && S && S.phase === 'reveal' && S.round === key) goNext(); }, 9000);
+}
+function goNext() {
+clearTimeout(nextT);
+if (S.round >= S.rounds - 1) { S.phase = 'final'; broadcast(); }
+else { S.round++; startRound(); }
+}
+function startRound() {
+S.order = roundOrder(); S.turn = 0; S.flash = null; S.phase = 'listen';
 broadcast();
 }
 let goneT = null;
@@ -214,7 +242,9 @@ if (c && !online().includes(c)) goneT = setTimeout(() => { if (S && S.phase === 
 }
 function roundOrder() {
 const on = online(), keep = S.order.filter(id => on.includes(id));
-return keep.concat(on.filter(id => !keep.includes(id)));
+const rest = on.filter(id => !keep.includes(id));
+if (!keep.length) return [S.host].concat(rest.filter(id => id !== S.host));
+return keep.concat(rest);
 }
 function players() {
 const ids = new Set([...online(), ...Object.keys(S.scores), ...(S.order || [])]);
@@ -228,17 +258,49 @@ return `<div class="rk"><span class="p">${rank}</span><span class="nmv">${esc(p.
 }
 /* ---------- 게임 스테이지 ---------- */
 const stage = A.makeStage($('#o-stage'), {
-emptyText: '<strong>한 방 승부</strong>원본은 몇 번이든 들을 수 있지만<br>녹음은 한 번뿐이에요.',
+emptyText: '<strong>준비 중</strong>곧 다 같이 원본을 들어요.',
+onProgress(k, n) { if (net && S && curId() === me.id) net.send({ t: 'prog', id: me.id, k, n, key: turnKey() }); },
+onSilent() {
+if (net && S && curId() === me.id) net.send({ t: 'prog', id: me.id, k: 'silent', key: turnKey() });
+const tk = turnKey();
+if (retried < 2) { retried++; stage.setStatus('소리가 안 잡혔어요. 잠시 후 다시 시작해요', true); setTimeout(() => autoTake(tk), 2500); }
+},
 onResult(res) {
 stage.setRecDisabled(true);
 const msg = { t: 'score', id: me.id, name: me.name, round: S.round, score: res.score };
-if (isHost) onMsgHostSelf(msg); else net && net.send(msg);
 myDone[S.round] = res.score;
+if (isHost) onMsg(msg); else net && net.send(msg);
 render();
 }
 });
 const myDone = {};
-const onMsgHostSelf = m => onMsg(m);
+function autoTake(tk) {
+if (!S || S.phase !== 'play' || turnKey() !== tk || curId() !== me.id || stage.st.busy || myDone[S.round] != null || scoreOf(me.id, S.round) != null) return;
+stage.take();
+}
+function showProg(m) {
+if (!S || S.phase !== 'play' || m.id !== curId() || m.id === me.id || m.key !== turnKey()) return;
+const nm = S.names[m.id] || '???', cnt = stage.q('.count');
+if (m.k === 'count') {
+cnt.hidden = false;
+if (m.n === '시작!') { cnt.innerHTML = '<span style="font-size:.5em">시작!</span>'; setTimeout(() => { cnt.hidden = true; }, 600); }
+else cnt.textContent = m.n;
+stage.setStatus(nm + '님 차례! ' + (m.n === '시작!' ? '' : m.n + '…'));
+} else if (m.k === 'rec') { cnt.hidden = true; stage.setStatus(nm + '님이 따라하는 중… 들어보세요!', true); }
+else if (m.k === 'analyze') stage.setStatus(nm + '님 채점 중…');
+else if (m.k === 'silent') { cnt.hidden = true; stage.setStatus(nm + '님 소리가 안 잡혀서 다시 해요'); }
+}
+async function listenTogether(round) {
+const snd = M.SOUNDS.find(s => s.id === S.seq[round]);
+stage.setStatus('다 같이 원본을 들어보세요');
+let ok = true;
+try { await A.audio(); await A.playRef(snd); } catch (e) { ok = false; }
+if (S && S.phase === 'listen' && S.round === round) stage.setStatus(ok ? '곧 차례대로 시작해요' : '원본 재생이 안 됐어요. 원본 듣기를 눌러 들어보세요');
+if (isHost) {
+await A.sleep(ok ? 1200 : 3000);
+if (S && S.phase === 'listen' && S.round === round) { S.phase = 'play'; S.turn = 0; advance(false); }
+}
+}
 /* ---------- 렌더 ---------- */
 function render() {
 if (!net || !S) { if (!net) show('entry'); return; }
@@ -255,33 +317,67 @@ $('#o-hostctl').hidden = !isHost; $('#o-lwait').hidden = isHost;
 $('#o-start').disabled = on.length < 2;
 $('#o-start').textContent = on.length < 2 ? '친구가 들어오면 시작할 수 있어요' : `${on.length}명으로 게임 시작`;
 Object.keys(myDone).forEach(k => delete myDone[k]);
-lastStage = null;
+lastStage = lastTurn = lastFlash = lastListen = null;
 return;
 }
-if (S.phase === 'play') {
+if (S.phase === 'listen' || S.phase === 'play') {
 show('game');
 const snd = M.SOUNDS.find(s => s.id === S.seq[S.round]);
 $('#o-ground').innerHTML = `라운드 ${S.round + 1} <em>/ ${S.rounds}</em>`;
 const key = S.round + ':' + snd.id;
+if (lastStage !== key) { lastStage = key; lastTurn = lastFlash = null; stage.setSound(snd); }
+const ordNames = S.order.map((id, i) => `${i + 1}. ${esc(S.names[id] || '???')}${id === me.id ? '(나)' : ''}`).join(' → ');
+if (S.phase === 'listen') {
+stage.setRecDisabled(true);
+const t = stage.q('.turn'); t.hidden = false; t.textContent = '다 같이 듣기';
+if (lastListen !== S.round) {
+lastListen = S.round;
+stage.showEmpty(`<strong>이번 소리: ${esc(snd.word)}</strong>잘 들어두세요! 이 순서대로 따라해요.<br>${ordNames}`);
+listenTogether(S.round);
+}
+} else {
 const cur = curId(), curName = S.names[cur] || '???', mine = cur === me.id;
 const iDid = myDone[S.round] != null || scoreOf(me.id, S.round) != null;
-if (lastStage !== key) { lastStage = key; lastTurn = null; stage.setSound(snd); }
-const tk = key + ':' + S.turn;
+const tk = turnKey();
 if (lastTurn !== tk && stage.st.busy) setTimeout(render, 250);
 if (lastTurn !== tk && !stage.st.busy) {
-lastTurn = tk;
+lastTurn = tk; retried = 0;
+stage.q('.count').hidden = true;
 const t = stage.q('.turn'); t.hidden = false; t.textContent = mine ? '내 차례!' : curName + ' 차례';
-if (mine) { stage.setStatus('내 차례예요! 원본을 듣고 따라하기를 누르세요'); try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
-else stage.setStatus(curName + '님이 따라하는 중…');
-if (!iDid) stage.showEmpty(mine ? '<strong>내 차례!</strong>원본을 듣고 따라하기를 눌러요.<br>녹음은 한 번뿐이에요.' : `<strong>${esc(curName)}님 차례</strong>원본은 미리 들어둘 수 있어요.<br>내 차례가 오면 따라하기가 켜져요.`);
+if (mine) {
+stage.setStatus('내 차례예요! 곧 3, 2, 1 후 녹음이 시작돼요');
+try { navigator.vibrate && navigator.vibrate(200); } catch (e) {}
+if (!iDid) { stage.showEmpty('<strong>내 차례!</strong>곧 3, 2, 1 후 녹음이 시작돼요.<br>"시작!"이 뜨면 따라하세요.'); setTimeout(() => autoTake(tk), 1600); }
+} else {
+stage.setStatus(curName + '님 차례! 곧 시작해요');
+if (!iDid) stage.showEmpty(`<strong>${esc(curName)}님 차례</strong>잘 들어보세요! 순서: ${ordNames}`);
 }
-stage.setRecDisabled(!mine || iDid);
+}
+if (S.flash) {
+const fk = tk + ':' + S.flash.id;
+if (lastFlash !== fk) {
+lastFlash = fk;
+const fn = S.names[S.flash.id] || '???';
+if (S.flash.id !== me.id) {
+const [g] = A.grade(S.flash.score);
+stage.q('.count').hidden = true;
+stage.setStatus(`${fn}님 ${S.flash.score}점!`);
+if (!iDid) stage.showEmpty(`<strong style="font-size:56px;color:var(--yellow)">${S.flash.score}점</strong><strong>${esc(fn)}님 · ${esc(g)}</strong>곧 다음 사람 차례예요.`);
+}
+}
+}
+stage.setRecDisabled(!mine || iDid || !!S.flash);
 const ord = S.order.map(id => ps.find(p => p.id === id) || { id, name: S.names[id] || '???', total: 0, s: [], on: false });
 $('#o-board').innerHTML = ord.map((p, i) => { const sc = scoreOf(p.id, S.round);
 return `<span class="chip ${p.id === cur ? 'now' : ''}">${i + 1}. ${esc(p.name)}${p.id === me.id ? '(나)' : ''} <b>${p.total}</b> ${sc != null ? `<span class="o-badge done">${sc}점</span>` : p.id === cur ? '<span class="o-badge">지금 차례</span>' : !p.on ? '<span class="o-badge wait">나감</span>' : '<span class="o-badge wait">대기</span>'}</span>`; }).join('');
 const done = S.order.filter(id => scoreOf(id, S.round) != null).length;
 $('#o-gwait').textContent = `${done} / ${S.order.length}명 완료 · 지금 ${curName}${mine ? '(나)' : ''} 차례`;
-$('#o-reveal').hidden = !isHost || mine;
+$('#o-reveal').hidden = !isHost || mine || !!S.flash;
+return;
+}
+$('#o-board').innerHTML = S.order.map((id, i) => `<span class="chip">${i + 1}. ${esc(S.names[id] || '???')}${id === me.id ? '(나)' : ''}</span>`).join('');
+$('#o-gwait').textContent = '다 같이 원본 듣는 중…';
+$('#o-reveal').hidden = true;
 return;
 }
 if (S.phase === 'reveal') {
@@ -292,8 +388,9 @@ const rtop = list.filter(p => list.length && p.s[S.round] === list[0].s[S.round]
 $('#o-rtitle').innerHTML = !list.length ? `라운드 ${S.round + 1} 결과` : rtop.length > 1 ? `라운드 ${S.round + 1} 공동 1등: <b>${rtop.map(p => esc(p.name)).join(', ')}</b>` : `라운드 ${S.round + 1} "${esc(snd.word)}" 1등은 <b>${esc(list[0].name)}</b>`;
 $('#o-rrank').innerHTML = rankRows(list, p => p.s[S.round], p => `${esc(A.grade(p.s[S.round])[0])} · 누적 ${p.total}점`);
 const last = S.round >= S.rounds - 1;
-$('#o-next').hidden = !isHost; $('#o-rwait').hidden = isHost;
-$('#o-next').textContent = last ? '최종 순위 보기' : `라운드 ${S.round + 2}로`;
+$('#o-next').hidden = !isHost;
+$('#o-next').textContent = last ? '바로 최종 순위 보기' : `바로 라운드 ${S.round + 2} 시작`;
+$('#o-rwait').textContent = last ? '잠시 후 최종 순위가 나와요…' : '잠시 후 다음 라운드가 시작돼요…';
 return;
 }
 if (S.phase === 'final') {
@@ -310,10 +407,10 @@ $('#o-create').onclick = () => enter(String(Math.floor(1000 + Math.random() * 90
 $('#o-join').onclick = () => { const c = $('#o-codein').value.replace(/\D/g, ''); if (c.length !== 4) { err('4자리 방 코드를 넣어주세요'); return; } enter(c, false); };
 $('#o-codein').onkeydown = e => { if (e.key === 'Enter') $('#o-join').click(); };
 $('#o-rounds').onclick = e => { const b = e.target.closest('button'); if (!b) return; rounds = +b.dataset.v; [...$('#o-rounds').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
-$('#o-start').onclick = () => { if (!isHost) return; S.rounds = rounds; S.seq = shuffle(M.SOUNDS.map(s => s.id)).slice(0, rounds); S.round = 0; S.scores = {}; S.order = [S.host].concat(online().filter(id => id !== S.host)); S.turn = 0; S.phase = 'play'; advance(false); };
+$('#o-start').onclick = () => { if (!isHost) return; unlock(); S.rounds = rounds; S.seq = shuffle(M.SOUNDS.map(s => s.id)).slice(0, rounds); S.round = 0; S.scores = {}; S.order = []; startRound(); };
 $('#o-reveal').onclick = () => { if (isHost && S.phase === 'play') advance(); };
-$('#o-next').onclick = () => { if (!isHost) return; if (S.round >= S.rounds - 1) { S.phase = 'final'; broadcast(); } else { S.round++; S.order = roundOrder(); S.turn = 0; S.phase = 'play'; advance(false); } };
-$('#o-again').onclick = () => { if (!isHost) return; S.phase = 'lobby'; S.scores = {}; S.round = 0; broadcast(); };
+$('#o-next').onclick = () => { if (isHost && S.phase === 'reveal') goNext(); };
+$('#o-again').onclick = () => { if (!isHost) return; S.phase = 'lobby'; S.scores = {}; S.round = 0; S.order = []; broadcast(); };
 $('#o-invite').onclick = () => A.copy(`[똑같쥬?] 성대모사 대결 방에 들어와! 방 코드 ${code}\n${location.origin + location.pathname}?room=${code}`);
 $('#o-fcopy').onclick = () => { const list = players().sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)); A.copy(`[똑같쥬?] 온라인 성대모사 대결 (${S.rounds}판)\n` + list.map((p, i) => `${i + 1}위 ${p.name} ${p.total}점`).join('\n') + `\n${location.origin + location.pathname}`); };
 ['#o-leave1', '#o-leave2', '#o-leave3'].forEach(id => $(id).onclick = () => { if (stage.st.busy) return; leave(); });
