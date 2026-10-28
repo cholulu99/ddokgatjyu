@@ -663,6 +663,22 @@ if(playing){ try{ playing.stop(); }catch(e){} }
 const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(); playing = s;
 return new Promise(r => s.onended = () => { if(playing === s) playing = null; r(); });
 }
+function playBuffer(buf){
+if(!actx || !buf) return Promise.resolve();
+if(playing){ try{ playing.stop(); }catch(e){} }
+const s = actx.createBufferSource(); s.buffer = buf; s.connect(actx.destination); s.start(); playing = s;
+return new Promise(r => s.onended = () => { if(playing === s) playing = null; r(); });
+}
+function trimRec(buf){
+const d = buf.getChannelData(0); let pk = 0; for(let i=0;i<d.length;i++) pk = Math.max(pk, Math.abs(d[i]));
+if(pk < 1e-4) return buf;
+const th = pk * 0.08, pad = Math.floor(buf.sampleRate * 0.15); let a = 0, b = d.length - 1;
+while(a < b && Math.abs(d[a]) < th) a++; while(b > a && Math.abs(d[b]) < th) b--;
+a = Math.max(0, a - pad); b = Math.min(d.length - 1, b + pad);
+const g = Math.min(8, 0.9 / pk), out = actx.createBuffer(1, b - a + 1, buf.sampleRate), o = out.getChannelData(0);
+for(let i=a;i<=b;i++) o[i-a] = d[i] * g;
+return out;
+}
 function beep(f, d, when){
 const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f;
 const t = actx.currentTime + (when||0); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.18, t+0.01); g.gain.linearRampToValueAtTime(0, t+d);
@@ -779,6 +795,7 @@ st.abort = {};
 const secs = st.snd.dur + 1.0;
 const buf = await record(secs, (pk, p) => { q('.bar i').style.width = Math.min(100, pk*160) + '%'; q('.time i').style.width = Math.min(100, p*100) + '%'; }, st.abort);
 q('.b-stop').hidden = true; q('.bar i').style.width = '0';
+st.rec = trimRec(buf);
 setStatus('분석 중…');
 await sleep(30);
 const U = M.analyze(await M.toAnalysis(buf));
@@ -786,12 +803,13 @@ const res = M.compare(ref.feat, U);
 res.R = ref.feat; res.U = U;
 if(res.silent){
 setStatus('소리가 거의 안 들렸어요', true);
-showEmpty('<strong>소리가 안 잡혔어요</strong>마이크에 조금 더 가까이, 크게 해보세요.');
+showEmpty('<strong>소리가 안 잡혔어요</strong>마이크에 조금 더 가까이, 크게 해보세요.<br><button class="btn b-mine" style="margin-top:12px">▶ 녹음된 소리 들어보기</button>'); q('.result .b-mine').onclick = () => playBuffer(st.rec);
 opts.onSilent && opts.onSilent();
 }else{
 setStatus('채점 완료!');
 fanfare(res.score);
 showResult(res);
+const recNow = st.rec; setTimeout(() => { if(!st.busy && st.rec === recNow) { setStatus('내 목소리 재생 중…'); playBuffer(recNow).then(() => { if(st.rec === recNow && !st.busy) setStatus('채점 완료! 내 목소리를 다시 들어볼 수 있어요'); }); } }, 900);
 opts.onResult && opts.onResult(res, st.snd);
 }
 }finally{ q('.b-stop').hidden = true; lock(false); }
@@ -807,10 +825,13 @@ el.innerHTML = `
 <canvas class="viz" width="600" height="160"></canvas>
 <div class="legend"><span style="--c:var(--cyan)">원본 음높이</span><span style="--c:var(--pink)">내 음높이</span><span style="--c:#3a3f8f">음량</span></div>
 ${res.score < 95 ? `<div class="note">${esc(tip(res.parts))}</div>` : ''}
+<div class="btns"><button class="btn b-mine">▶ 내 목소리 듣기</button><button class="btn ghost b-ab">원본 → 내 목소리 비교</button></div>
 <div class="btns extra"></div>`;
 const n = el.querySelector('.n'), target = res.score, t0 = performance.now();
 (function tick(t){ const p = Math.min(1, (t - t0) / 900); n.textContent = Math.round(target * (1 - Math.pow(1-p, 3))); if(p < 1) requestAnimationFrame(tick); })(t0);
 drawViz(el.querySelector('canvas'), res.R, res.U);
+el.querySelector('.b-mine').onclick = () => playBuffer(st.rec);
+el.querySelector('.b-ab').onclick = async () => { await playRef(st.snd); await sleep(300); await playBuffer(st.rec); };
 if(window.matchMedia('(max-width:820px)').matches) el.scrollIntoView({ behavior:'smooth', block:'start' });
 opts.extraButtons && opts.extraButtons(el.querySelector('.extra'), res);
 }
